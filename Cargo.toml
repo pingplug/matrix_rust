@@ -1,0 +1,8 @@
+[package]
+name = "r_matrix"
+version = "0.1.0"
+authors = ["pingplug <pingplug@foxmail.com>"]
+
+[dependencies]
+
+rand = "0.3.14"
