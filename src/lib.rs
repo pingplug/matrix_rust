@@ -12,7 +12,7 @@ mod tests {
     }
 
     #[test]
-    fn out_of_place() {
+    fn basic() {
         use r_matrix::RMatrix;
         let diag = RMatrix::gen_diag(4, 3, vec![1.0, 2.0, 3.0]);
         let eye = RMatrix::gen_eye(4, 3);
@@ -47,7 +47,7 @@ mod tests {
         (&(&rand ^ &ones) ^ &rand);
         (&!&diag | &ones);
         (&!&diag % &ones);
-    
+
         // in place
         let mut a = ones.clone();
         a += &!&rand;
@@ -91,9 +91,8 @@ mod tests {
     fn cholesky() {
         use r_matrix::RMatrix;
         let n: usize = 100;
-        let mut rand = RMatrix::gen_eye(n, n);
-        rand *= 100.0;
-        rand += &RMatrix::gen_rand_sym(n);
+        let mut rand = RMatrix::gen_rand_sym(n);
+        rand = &rand ^ &!&rand;
         let l = rand.cholesky();
         assert!(feq((&l ^ &!&l).norm_f() / rand.norm_f(), 1.0));
         let l = rand.pp_cholesky();
@@ -117,118 +116,100 @@ mod tests {
         assert!(feq((&l ^ &u).norm_f() / (&(&p ^ &rand) ^ &q).norm_f(), 1.0));
     }
 
-    #[test]
-    fn qr_long() {
+    fn qr_test1(x: usize, y: usize, _fx: f64, fy: f64) {
         use r_matrix::RMatrix;
-        let x: usize = 50;
-        let y: usize = 200;
-        let fx: f64 = 50.0;
-        let fy: f64 = 200.0;
+        let rand = RMatrix::gen_rand(x, y);
+
+        let (q, r) = rand.cqr_cgs();
+        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(y, y)).norm_f() / (fy * fy), 0.0));
+        assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
+
+        let (q, r) = rand.cqr_mgs();
+        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(y, y)).norm_f() / (fy * fy), 0.0));
+        assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
+    }
+
+    fn qr_test2(x: usize, y: usize, fx: f64, fy: f64) {
+        use r_matrix::RMatrix;
         let rand = RMatrix::gen_rand(x, y);
 
         let (q, r) = rand.qr_hh();
         assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
         assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
-    
+
         let mut rand1 = rand.clone();
         rand1.iqr_hh();
-    
+
         let (q, r) = rand.qr_givens();
         assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
         assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
-    
+
         let mut rand1 = rand.clone();
         rand1.iqr_givens();
 
         let mut rand1 = rand.clone();
-        let (u, v) = rand1.isvd_qr();
+        let (u, v) = rand1.ipqb_hh();
         assert!(feq((&(&!&u ^ &u) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
         assert!(feq((&(&!&v ^ &v) - &RMatrix::gen_eye(y, y)).norm_f() / (fy * fy), 0.0));
         assert!(feq((&(&u ^ &rand1) ^ &v).norm_f() / rand.norm_f(), 1.0));
-    
+
         let mut rand1 = rand.clone();
-        rand1.isv_qr();
+        let (u, v) = rand1.ipqb_givens();
+        assert!(feq((&(&!&u ^ &u) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
+        assert!(feq((&(&!&v ^ &v) - &RMatrix::gen_eye(y, y)).norm_f() / (fy * fy), 0.0));
+        assert!(feq((&(&u ^ &rand1) ^ &v).norm_f() / rand.norm_f(), 1.0));
+
+        let mut rand1 = rand.clone();
+        rand1.ib_hh();
+
+        let mut rand1 = rand.clone();
+        rand1.ib_givens();
+    }
+
+    #[test]
+    fn qr_long() {
+        qr_test2(50, 200, 50.0, 200.0);
     }
 
     #[test]
     fn qr_square() {
-        use r_matrix::RMatrix;
-        let x: usize = 100;
-        let y: usize = 100;
-        let fx: f64 = 100.0;
-        let fy: f64 = 100.0;
-        let rand = RMatrix::gen_rand(x, y);
+        qr_test1(100, 100, 100.0, 100.0);
+        qr_test2(100, 100, 100.0, 100.0);
+    }
 
-        let (q, r) = rand.cqr_cgs();
-        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(y, y)).norm_f() / (fy * fy), 0.0));
-        assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
-    
-        let (q, r) = rand.cqr_mgs();
-        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(y, y)).norm_f() / (fy * fy), 0.0));
-        assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
-    
-        let (q, r) = rand.qr_hh();
-        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
-        assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
-    
-        let mut rand1 = rand.clone();
-        rand1.iqr_hh();
-    
-        let (q, r) = rand.qr_givens();
-        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
-        assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
-    
-        let mut rand1 = rand.clone();
-        rand1.iqr_givens();
+    #[test]
+    fn qr_tall() {
+        qr_test1(200, 50, 200.0, 50.0);
+        qr_test2(200, 50, 200.0, 50.0);
+    }
+
+    fn svd_test(x: usize, y: usize, fx: f64, fy: f64) {
+        use r_matrix::RMatrix;
+        let rand = RMatrix::gen_rand(x, y);
 
         let mut rand1 = rand.clone();
         let (u, v) = rand1.isvd_qr();
         assert!(feq((&(&!&u ^ &u) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
         assert!(feq((&(&!&v ^ &v) - &RMatrix::gen_eye(y, y)).norm_f() / (fy * fy), 0.0));
         assert!(feq((&(&u ^ &rand1) ^ &v).norm_f() / rand.norm_f(), 1.0));
-    
+
         let mut rand1 = rand.clone();
         rand1.isv_qr();
     }
 
     #[test]
-    fn qr_tall() {
-        use r_matrix::RMatrix;
-        let x: usize = 200;
-        let y: usize = 50;
-        let fx: f64 = 200.0;
-        let fy: f64 = 50.0;
-        let rand = RMatrix::gen_rand(x, y);
-
-        let (q, r) = rand.cqr_cgs();
-        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(y, y)).norm_f() / (fy * fy), 0.0));
-        assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
-    
-        let (q, r) = rand.cqr_mgs();
-        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(y, y)).norm_f() / (fy * fy), 0.0));
-        assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
-    
-        let (q, r) = rand.qr_hh();
-        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
-        assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
-    
-        let mut rand1 = rand.clone();
-        rand1.iqr_hh();
-    
-        let (q, r) = rand.qr_givens();
-        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
-        assert!(feq((&q ^ &r).norm_f() / rand.norm_f(), 1.0));
-    
-        let mut rand1 = rand.clone();
-        rand1.iqr_givens();
-
-        let mut rand1 = rand.clone();
-        let (u, v) = rand1.isvd_qr();
-        assert!(feq((&(&!&u ^ &u) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
-        assert!(feq((&(&!&v ^ &v) - &RMatrix::gen_eye(y, y)).norm_f() / (fy * fy), 0.0));
-        assert!(feq((&(&u ^ &rand1) ^ &v).norm_f() / rand.norm_f(), 1.0));
-    
-        let mut rand1 = rand.clone();
-        rand1.isv_qr();
+    fn svd_long() {
+        svd_test(50, 200, 50.0, 200.0);
     }
+
+    #[test]
+    fn svd_square() {
+        svd_test(100, 100, 100.0, 100.0);
+    }
+
+    #[test]
+    fn svd_tall() {
+        svd_test(200, 50, 200.0, 50.0);
+    }
+
 }

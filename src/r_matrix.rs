@@ -894,6 +894,216 @@ impl RMatrix {
         }
     }
 
+    // up/dn bidiag decomposition, Householder
+    // in place
+    // A = P ^ B ^ Q
+    pub fn ipqb_hh(&mut self) -> (RMatrix, RMatrix) {
+        let mut ret_p_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut ret_q_data: Vec<f64> = vec![0.0; self.y * self.y];
+        let mut tmp_x: Vec<f64> = vec![0.0; self.x];
+        let mut tmp_y: Vec<f64> = vec![0.0; self.y];
+        let mut n2: f64;
+        for i in 0..self.x {
+            ret_p_data[i * self.x + i] = 1.0;
+        }
+        for i in 0..self.y {
+            ret_q_data[i * self.y + i] = 1.0;
+        }
+        if self.x < self.y {
+            for n in 0..(self.x - 1) {
+                // Householder
+                for i in 0..n {
+                    tmp_y[i] = 0.0;
+                }
+                for i in n..self.y {
+                    tmp_y[i] = self.data[n * self.y + i];
+                }
+                n2 = 0.0;
+                for i in n..self.y {
+                    n2 += tmp_y[i] * tmp_y[i];
+                }
+                if tmp_y[n] > 0.0 {
+                    tmp_y[n] += n2.sqrt();
+                    n2 = (2.0 * n2.sqrt() * tmp_y[n]).sqrt();
+                } else {
+                    tmp_y[n] -= n2.sqrt();
+                    n2 = (-2.0 * n2.sqrt() * tmp_y[n]).sqrt();
+                }
+                for i in n..self.y {
+                    tmp_y[i] /= n2;
+                }
+                // apply to A
+                for k in n..self.x {
+                    n2 = 0.0;
+                    for i in n..self.y {
+                        n2 += self.data[k * self.y + i] * tmp_y[i];
+                    }
+                    for i in n..self.y {
+                        self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                    }
+                }
+                for i in (n + 1)..self.y {
+                    self.data[n * self.y + i] = 0.0;
+                }
+                // get Q
+                for k in 0..self.y {
+                    n2 = 0.0;
+                    for i in n..self.y {
+                        n2 += ret_q_data[i * self.y + k] * tmp_y[i];
+                    }
+                    for i in n..self.y {
+                        ret_q_data[i * self.y + k] -= 2.0 * n2 * tmp_y[i];
+                    }
+                }
+                // Householder
+                for i in 0..(n + 1) {
+                    tmp_x[i] = 0.0;
+                }
+                for i in (n + 1)..self.x {
+                    tmp_x[i] = self.data[i * self.y + n];
+                }
+                n2 = 0.0;
+                for i in (n + 1)..self.x {
+                    n2 += tmp_x[i] * tmp_x[i];
+                }
+                if tmp_x[n + 1] > 0.0 {
+                    tmp_x[n + 1] += n2.sqrt();
+                    n2 = (2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
+                } else {
+                    tmp_x[n + 1] -= n2.sqrt();
+                    n2 = (-2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
+                }
+                for i in (n + 1)..self.x {
+                    tmp_x[i] /= n2;
+                }
+                // apply to A
+                for k in n..self.y {
+                    n2 = 0.0;
+                    for i in (n + 1)..self.x {
+                        n2 += self.data[i * self.y + k] * tmp_x[i];
+                    }
+                    for i in (n + 1)..self.x {
+                        self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                    }
+                }
+                for i in (n + 2)..self.x {
+                    self.data[i * self.y + n] = 0.0;
+                }
+                // get P
+                for k in 0..self.x {
+                    n2 = 0.0;
+                    for i in (n + 1)..self.x {
+                        n2 += ret_p_data[k * self.x + i] * tmp_x[i];
+                    }
+                    for i in (n + 1)..self.x {
+                        ret_p_data[k * self.x + i] -= 2.0 * n2 * tmp_x[i];
+                    }
+                }
+            }
+        } else {
+            for n in 0..(self.y - 1) {
+                // Householder
+                for i in 0..n {
+                    tmp_x[i] = 0.0;
+                }
+                for i in n..self.x {
+                    tmp_x[i] = self.data[i * self.y + n];
+                }
+                n2 = 0.0;
+                for i in n..self.x {
+                    n2 += tmp_x[i] * tmp_x[i];
+                }
+                if tmp_x[n] > 0.0 {
+                    tmp_x[n] += n2.sqrt();
+                    n2 = (2.0 * n2.sqrt() * tmp_x[n]).sqrt();
+                } else {
+                    tmp_x[n] -= n2.sqrt();
+                    n2 = (-2.0 * n2.sqrt() * tmp_x[n]).sqrt();
+                }
+                for i in n..self.x {
+                    tmp_x[i] /= n2;
+                }
+                // apply to A
+                for k in n..self.y {
+                    n2 = 0.0;
+                    for i in n..self.x {
+                        n2 += self.data[i * self.y + k] * tmp_x[i];
+                    }
+                    for i in n..self.x {
+                        self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                    }
+                }
+                for i in (n + 1)..self.x {
+                    self.data[i * self.y + n] = 0.0;
+                }
+                // get P
+                for k in 0..self.x {
+                    n2 = 0.0;
+                    for i in n..self.x {
+                        n2 += ret_p_data[k * self.x + i] * tmp_x[i];
+                    }
+                    for i in n..self.x {
+                        ret_p_data[k * self.x + i] -= 2.0 * n2 * tmp_x[i];
+                    }
+                }
+                // Householder
+                for i in 0..(n + 1) {
+                    tmp_y[i] = 0.0;
+                }
+                for i in (n + 1)..self.y {
+                    tmp_y[i] = self.data[n * self.y + i];
+                }
+                n2 = 0.0;
+                for i in (n + 1)..self.y {
+                    n2 += tmp_y[i] * tmp_y[i];
+                }
+                if tmp_y[n + 1] > 0.0 {
+                    tmp_y[n + 1] += n2.sqrt();
+                    n2 = (2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
+                } else {
+                    tmp_y[n + 1] -= n2.sqrt();
+                    n2 = (-2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
+                }
+                for i in (n + 1)..self.y {
+                    tmp_y[i] /= n2;
+                }
+                // apply to A
+                for k in n..self.x {
+                    n2 = 0.0;
+                    for i in (n + 1)..self.y {
+                        n2 += self.data[k * self.y + i] * tmp_y[i];
+                    }
+                    for i in (n + 1)..self.y {
+                        self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                    }
+                }
+                for i in (n + 2)..self.y {
+                    self.data[n * self.y + i] = 0.0;
+                }
+                // get Q
+                for k in 0..self.y {
+                    n2 = 0.0;
+                    for i in (n + 1)..self.y {
+                        n2 += ret_q_data[i * self.y + k] * tmp_y[i];
+                    }
+                    for i in (n + 1)..self.y {
+                        ret_q_data[i * self.y + k] -= 2.0 * n2 * tmp_y[i];
+                    }
+                }
+            }
+        }
+        (RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_p_data
+        },
+        RMatrix {
+            x: self.y,
+            y: self.y,
+            data: ret_q_data
+        })
+    }
+
     // up/dn bidiag decomposition, Givens
     // in place
     // A = P ^ B ^ Q
@@ -911,7 +1121,7 @@ impl RMatrix {
             ret_q_data[i * self.y + i] = 1.0;
         }
         if self.x < self.y {
-            for n in 0..self.x {
+            for n in 0..(self.x - 1) {
                 for j in (n + 1)..self.y {
                     // Givens
                     x = self.data[n * self.y + n];
@@ -956,7 +1166,7 @@ impl RMatrix {
                 }
             }
         } else {
-            for n in 0..self.y {
+            for n in 0..(self.y - 1) {
                 for i in (n + 1)..self.x {
                     // Givens
                     x = self.data[n * self.y + n];
@@ -1091,6 +1301,158 @@ impl RMatrix {
         }
     }
 
+    // up/dn bidiag decomposition, Householder
+    // in place
+    // without P or Q
+    pub fn ib_hh(&mut self) {
+        let mut tmp_x: Vec<f64> = vec![0.0; self.x];
+        let mut tmp_y: Vec<f64> = vec![0.0; self.y];
+        let mut n2: f64;
+        if self.x < self.y {
+            for n in 0..(self.x - 1) {
+                // Householder
+                for i in 0..n {
+                    tmp_y[i] = 0.0;
+                }
+                for i in n..self.y {
+                    tmp_y[i] = self.data[n * self.y + i];
+                }
+                n2 = 0.0;
+                for i in n..self.y {
+                    n2 += tmp_y[i] * tmp_y[i];
+                }
+                if tmp_y[n] > 0.0 {
+                    tmp_y[n] += n2.sqrt();
+                    n2 = (2.0 * n2.sqrt() * tmp_y[n]).sqrt();
+                } else {
+                    tmp_y[n] -= n2.sqrt();
+                    n2 = (-2.0 * n2.sqrt() * tmp_y[n]).sqrt();
+                }
+                for i in n..self.y {
+                    tmp_y[i] /= n2;
+                }
+                // apply to A
+                for k in n..self.x {
+                    n2 = 0.0;
+                    for i in n..self.y {
+                        n2 += self.data[k * self.y + i] * tmp_y[i];
+                    }
+                    for i in n..self.y {
+                        self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                    }
+                }
+                for i in (n + 1)..self.y {
+                    self.data[n * self.y + i] = 0.0;
+                }
+                // Householder
+                for i in 0..(n + 1) {
+                    tmp_x[i] = 0.0;
+                }
+                for i in (n + 1)..self.x {
+                    tmp_x[i] = self.data[i * self.y + n];
+                }
+                n2 = 0.0;
+                for i in (n + 1)..self.x {
+                    n2 += tmp_x[i] * tmp_x[i];
+                }
+                if tmp_x[n + 1] > 0.0 {
+                    tmp_x[n + 1] += n2.sqrt();
+                    n2 = (2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
+                } else {
+                    tmp_x[n + 1] -= n2.sqrt();
+                    n2 = (-2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
+                }
+                for i in (n + 1)..self.x {
+                    tmp_x[i] /= n2;
+                }
+                // apply to A
+                for k in n..self.y {
+                    n2 = 0.0;
+                    for i in (n + 1)..self.x {
+                        n2 += self.data[i * self.y + k] * tmp_x[i];
+                    }
+                    for i in (n + 1)..self.x {
+                        self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                    }
+                }
+                for i in (n + 2)..self.x {
+                    self.data[i * self.y + n] = 0.0;
+                }
+            }
+        } else {
+            for n in 0..(self.y - 1) {
+                // Householder
+                for i in 0..n {
+                    tmp_x[i] = 0.0;
+                }
+                for i in n..self.x {
+                    tmp_x[i] = self.data[i * self.y + n];
+                }
+                n2 = 0.0;
+                for i in n..self.x {
+                    n2 += tmp_x[i] * tmp_x[i];
+                }
+                if tmp_x[n] > 0.0 {
+                    tmp_x[n] += n2.sqrt();
+                    n2 = (2.0 * n2.sqrt() * tmp_x[n]).sqrt();
+                } else {
+                    tmp_x[n] -= n2.sqrt();
+                    n2 = (-2.0 * n2.sqrt() * tmp_x[n]).sqrt();
+                }
+                for i in n..self.x {
+                    tmp_x[i] /= n2;
+                }
+                // apply to A
+                for k in n..self.y {
+                    n2 = 0.0;
+                    for i in n..self.x {
+                        n2 += self.data[i * self.y + k] * tmp_x[i];
+                    }
+                    for i in n..self.x {
+                        self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                    }
+                }
+                for i in (n + 1)..self.x {
+                    self.data[i * self.y + n] = 0.0;
+                }
+                // Householder
+                for i in 0..(n + 1) {
+                    tmp_y[i] = 0.0;
+                }
+                for i in (n + 1)..self.y {
+                    tmp_y[i] = self.data[n * self.y + i];
+                }
+                n2 = 0.0;
+                for i in (n + 1)..self.y {
+                    n2 += tmp_y[i] * tmp_y[i];
+                }
+                if tmp_y[n + 1] > 0.0 {
+                    tmp_y[n + 1] += n2.sqrt();
+                    n2 = (2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
+                } else {
+                    tmp_y[n + 1] -= n2.sqrt();
+                    n2 = (-2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
+                }
+                for i in (n + 1)..self.y {
+                    tmp_y[i] /= n2;
+                }
+                // apply to A
+                for k in n..self.x {
+                    n2 = 0.0;
+                    for i in (n + 1)..self.y {
+                        n2 += self.data[k * self.y + i] * tmp_y[i];
+                    }
+                    for i in (n + 1)..self.y {
+                        self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                    }
+                }
+                for i in (n + 2)..self.y {
+                    self.data[n * self.y + i] = 0.0;
+                }
+            }
+        }
+    }
+
     // up/dn bidiag decomposition, Givens
     // in place
     // without P or Q
@@ -1100,7 +1462,7 @@ impl RMatrix {
         let mut c: f64;
         let mut s: f64;
         if self.x < self.y {
-            for n in 0..self.x {
+            for n in 0..(self.x - 1) {
                 for j in (n + 1)..self.y {
                     // Givens
                     x = self.data[n * self.y + n];
@@ -1131,7 +1493,7 @@ impl RMatrix {
                 }
             }
         } else {
-            for n in 0..self.y {
+            for n in 0..(self.y - 1) {
                 for i in (n + 1)..self.x {
                     // Givens
                     x = self.data[n * self.y + n];
@@ -1232,7 +1594,7 @@ impl RMatrix {
     // in place
     // A = U ^ S ^ V
     pub fn isvd_qr(&mut self) -> (RMatrix, RMatrix) {
-        let (mut u, mut v) = self.ipqb_givens();
+        let (mut u, mut v) = self.ipqb_hh();
         let n: usize = self.x.min(self.y);
         let mut n1: f64;
         let mut n2: f64;
@@ -1255,7 +1617,7 @@ impl RMatrix {
     // in place
     // without U or V
     pub fn isv_qr(&mut self) {
-        self.ib_givens();
+        self.ib_hh();
         let n: usize = self.x.min(self.y);
         let mut n1: f64;
         let mut n2: f64;
