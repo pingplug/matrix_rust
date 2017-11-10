@@ -374,7 +374,7 @@ impl RMatrix {
                 max_r = j;
                 for i in (j + 1)..self.x {
                     if u_data[p_rank[i] * self.y + j].abs() > max_d.abs() {
-                        max_d = u_data[p_rank[i] * self.y + j]; 
+                        max_d = u_data[p_rank[i] * self.y + j];
                         max_r = i;
                     }
                 }
@@ -437,7 +437,7 @@ impl RMatrix {
                 max_r = j;
                 for i in (j + 1)..self.y {
                     if u_data[j * self.y + q_rank[i]].abs() > max_d.abs() {
-                        max_d = u_data[j * self.y + q_rank[i]]; 
+                        max_d = u_data[j * self.y + q_rank[i]];
                         max_r = i;
                     }
                 }
@@ -500,7 +500,7 @@ impl RMatrix {
                 max_r = j;
                 for i in (j + 1)..self.x {
                     if u_data[p_rank[i] * self.y + p_rank[i]].abs() > max_d.abs() {
-                        max_d = u_data[p_rank[i] * self.y + p_rank[i]]; 
+                        max_d = u_data[p_rank[i] * self.y + p_rank[i]];
                         max_r = i;
                     }
                 }
@@ -571,7 +571,7 @@ impl RMatrix {
                 for i in j..self.x {
                     for k in j..self.y {
                         if u_data[p_rank[i] * self.y + q_rank[k]].abs() > max_d.abs() {
-                            max_d = u_data[p_rank[i] * self.y + q_rank[k]]; 
+                            max_d = u_data[p_rank[i] * self.y + q_rank[k]];
                             max_p = i;
                             max_q = k;
                         }
@@ -894,7 +894,297 @@ impl RMatrix {
         }
     }
 
-    // up/dn bidiag decomposition, Householder
+    // Hessenberg matrix decomposition, Householder
+    // in place
+    // A = Q ^ H ^ !Q
+    pub fn iqhq_hh(&mut self) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.iqhq_hh(): square matrix only");
+        let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut tmp: Vec<f64> = vec![0.0; self.x];
+        let mut n2: f64;
+        for i in 0..self.x {
+            ret_q_data[i * self.x + i] = 1.0;
+        }
+        for n in 0..(self.y - 1) {
+            // Householder
+            for i in 0..(n + 1) {
+                tmp[i] = 0.0;
+            }
+            for i in (n + 1)..self.x {
+                tmp[i] = self.data[i * self.y + n];
+            }
+            n2 = 0.0;
+            for i in (n + 1)..self.x {
+                n2 += tmp[i] * tmp[i];
+            }
+            if tmp[n + 1] > 0.0 {
+                tmp[n + 1] += n2.sqrt();
+                n2 = (2.0 * n2.sqrt() * tmp[n + 1]).sqrt();
+            } else {
+                tmp[n + 1] -= n2.sqrt();
+                n2 = (-2.0 * n2.sqrt() * tmp[n + 1]).sqrt();
+            }
+            for i in (n + 1)..self.x {
+                tmp[i] /= n2;
+            }
+            // apply to A
+            for k in n..self.y {
+                n2 = 0.0;
+                for i in (n + 1)..self.x {
+                    n2 += self.data[i * self.y + k] * tmp[i];
+                }
+                for i in (n + 1)..self.x {
+                    self.data[i * self.y + k] -= 2.0 * n2 * tmp[i];
+                }
+            }
+            for i in (n + 2)..self.x {
+                self.data[i * self.y + n] = 0.0;
+            }
+            // get Q
+            for k in 0..self.x {
+                n2 = 0.0;
+                for i in (n + 1)..self.x {
+                    n2 += ret_q_data[k * self.x + i] * tmp[i];
+                }
+                for i in (n + 1)..self.x {
+                    ret_q_data[k * self.x + i] -= 2.0 * n2 * tmp[i];
+                }
+            }
+            // apply to A
+            for k in n..self.x {
+                n2 = 0.0;
+                for i in (n + 1)..self.y {
+                    n2 += self.data[k * self.y + i] * tmp[i];
+                }
+                for i in (n + 1)..self.y {
+                    self.data[k * self.y + i] -= 2.0 * n2 * tmp[i];
+                }
+            }
+        }
+        RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_q_data
+        }
+    }
+
+    // Hessenberg matrix decomposition, Givens
+    // in place
+    // A = Q ^ H ^ !Q
+    pub fn iqhq_givens(&mut self) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.iqhq_givens(): square matrix only");
+        let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut x: f64;
+        let mut y: f64;
+        let mut c: f64;
+        let mut s: f64;
+        for i in 0..self.x {
+            ret_q_data[i * self.x + i] = 1.0;
+        }
+        for n in 0..(self.y - 1) {
+            for i in (n + 2)..self.x {
+                if self.data[i * self.y + n] == 0.0 {
+                    continue;
+                }
+                // Givens
+                x = self.data[(n + 1) * self.y + n];
+                y = self.data[i * self.y + n];
+                c = x / (x * x + y * y).sqrt();
+                s = y / (x * x + y * y).sqrt();
+                for k in n..self.y {
+                    x = self.data[(n + 1) * self.y + k];
+                    y = self.data[i * self.y + k];
+                    self.data[(n + 1) * self.y + k] =  x * c + y * s;
+                    self.data[i * self.y + k] = -x * s + y * c;
+                }
+                self.data[i * self.y + n] = 0.0;
+                // get Q
+                for k in 0..(i + 1) {
+                    x = ret_q_data[k * self.x + n + 1];
+                    y = ret_q_data[k * self.x + i];
+                    ret_q_data[k * self.x + n + 1] =  x * c + y * s;
+                    ret_q_data[k * self.x + i] = -x * s + y * c;
+                }
+                for k in n..self.x {
+                    x = self.data[k * self.y + n + 1];
+                    y = self.data[k * self.y + i];
+                    self.data[k * self.y + n + 1] =  x * c + y * s;
+                    self.data[k * self.y + i] = -x * s + y * c;
+                }
+            }
+        }
+        RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_q_data
+        }
+    }
+
+    // tridiag matrix decomposition, Householder
+    // A must be (skew-)symmetric
+    // in place
+    // A = Q ^ T ^ !Q
+    pub fn iqtq_hh(&mut self) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.iqtq_hh(): square matrix only");
+        let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut tmp: Vec<f64> = vec![0.0; self.x];
+        let mut n2: f64;
+        for i in 0..self.x {
+            ret_q_data[i * self.x + i] = 1.0;
+        }
+        for n in 0..(self.y - 1) {
+            // Householder
+            for i in 0..(n + 1) {
+                tmp[i] = 0.0;
+            }
+            for i in (n + 1)..self.x {
+                tmp[i] = self.data[i * self.y + n];
+            }
+            n2 = 0.0;
+            for i in (n + 1)..self.x {
+                n2 += tmp[i] * tmp[i];
+            }
+            if tmp[n + 1] > 0.0 {
+                tmp[n + 1] += n2.sqrt();
+                n2 = (2.0 * n2.sqrt() * tmp[n + 1]).sqrt();
+            } else {
+                tmp[n + 1] -= n2.sqrt();
+                n2 = (-2.0 * n2.sqrt() * tmp[n + 1]).sqrt();
+            }
+            for i in (n + 1)..self.x {
+                tmp[i] /= n2;
+            }
+            // apply to A
+            for k in n..self.y {
+                n2 = 0.0;
+                for i in (n + 1)..self.x {
+                    n2 += self.data[i * self.y + k] * tmp[i];
+                }
+                for i in (n + 1)..self.x {
+                    self.data[i * self.y + k] -= 2.0 * n2 * tmp[i];
+                }
+            }
+            for i in (n + 2)..self.x {
+                self.data[i * self.y + n] = 0.0;
+            }
+            // get Q
+            for k in 0..self.x {
+                n2 = 0.0;
+                for i in (n + 1)..self.x {
+                    n2 += ret_q_data[k * self.x + i] * tmp[i];
+                }
+                for i in (n + 1)..self.x {
+                    ret_q_data[k * self.x + i] -= 2.0 * n2 * tmp[i];
+                }
+            }
+            // apply to A
+            for k in n..self.x {
+                n2 = 0.0;
+                for i in (n + 1)..self.y {
+                    n2 += self.data[k * self.y + i] * tmp[i];
+                }
+                for i in (n + 1)..self.y {
+                    self.data[k * self.y + i] -= 2.0 * n2 * tmp[i];
+                }
+            }
+            for i in (n + 2)..self.y {
+                self.data[n * self.y + i] = 0.0;
+            }
+        }
+        if self.x > 1 {
+            if self.data[1] * self.data[self.y] < 0.0 {
+                // skew symmetric
+                for n in 0..(self.y - 1) {
+                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] - self.data[(n + 1) * self.y + n]) / 2.0;
+                    self.data[(n + 1) * self.y + n] = -1.0 * self.data[n * self.y + n + 1];
+                    self.data[(n + 1) * self.y + n + 1] = 0.0;
+                }
+            } else if self.data[1] * self.data[self.y] > 0.0 {
+                // symmetric
+                for n in 0..(self.y - 1) {
+                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] + self.data[(n + 1) * self.y + n]) / 2.0;
+                    self.data[(n + 1) * self.y + n] = self.data[n * self.y + n + 1];
+                }
+            }
+        }
+        RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_q_data
+        }
+    }
+
+    // tridiag matrix decomposition, Givens
+    // A must be (skew-)symmetric
+    // in place
+    // A = Q ^ T ^ !Q
+    pub fn iqtq_givens(&mut self) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.iqtq_givens(): square matrix only");
+        let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut x: f64;
+        let mut y: f64;
+        let mut c: f64;
+        let mut s: f64;
+        for i in 0..self.x {
+            ret_q_data[i * self.x + i] = 1.0;
+        }
+        for n in 0..(self.y - 1) {
+            for i in (n + 2)..self.x {
+                if self.data[i * self.y + n] == 0.0 {
+                    continue;
+                }
+                // Givens
+                x = self.data[(n + 1) * self.y + n];
+                y = self.data[i * self.y + n];
+                c = x / (x * x + y * y).sqrt();
+                s = y / (x * x + y * y).sqrt();
+                for k in n..self.y {
+                    x = self.data[(n + 1) * self.y + k];
+                    y = self.data[i * self.y + k];
+                    self.data[(n + 1) * self.y + k] =  x * c + y * s;
+                    self.data[i * self.y + k] = -x * s + y * c;
+                }
+                self.data[i * self.y + n] = 0.0;
+                // get Q
+                for k in 0..(i + 1) {
+                    x = ret_q_data[k * self.x + n + 1];
+                    y = ret_q_data[k * self.x + i];
+                    ret_q_data[k * self.x + n + 1] =  x * c + y * s;
+                    ret_q_data[k * self.x + i] = -x * s + y * c;
+                }
+                for k in n..self.x {
+                    x = self.data[k * self.y + n + 1];
+                    y = self.data[k * self.y + i];
+                    self.data[k * self.y + n + 1] =  x * c + y * s;
+                    self.data[k * self.y + i] = -x * s + y * c;
+                }
+                self.data[n * self.y + i] = 0.0;
+            }
+        }
+        if self.x > 1 {
+            if self.data[1] * self.data[self.y] < 0.0 {
+                // skew symmetric
+                for n in 0..(self.y - 1) {
+                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] - self.data[(n + 1) * self.y + n]) / 2.0;
+                    self.data[(n + 1) * self.y + n] = -1.0 * self.data[n * self.y + n + 1];
+                    self.data[(n + 1) * self.y + n + 1] = 0.0;
+                }
+            } else if self.data[1] * self.data[self.y] > 0.0 {
+                // symmetric
+                for n in 0..(self.y - 1) {
+                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] + self.data[(n + 1) * self.y + n]) / 2.0;
+                    self.data[(n + 1) * self.y + n] = self.data[n * self.y + n + 1];
+                }
+            }
+        }
+        RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_q_data
+        }
+    }
+
+    // up/dn bidiag matrix decomposition, Householder
     // in place
     // A = P ^ B ^ Q
     pub fn ipqb_hh(&mut self) -> (RMatrix, RMatrix) {
@@ -1119,7 +1409,7 @@ impl RMatrix {
         })
     }
 
-    // up/dn bidiag decomposition, Givens
+    // up/dn bidiag matrix decomposition, Givens
     // in place
     // A = P ^ B ^ Q
     pub fn ipqb_givens(&mut self) -> (RMatrix, RMatrix) {
@@ -1328,7 +1618,227 @@ impl RMatrix {
         }
     }
 
-    // up/dn bidiag decomposition, Householder
+    // Hessenberg matrix decomposition, Householder
+    // in place
+    // without Q
+    pub fn ih_hh(&mut self) {
+        assert_eq!(self.x, self.y, "RMatrix.ih_hh(): square matrix only");
+        let mut tmp: Vec<f64> = vec![0.0; self.x];
+        let mut n2: f64;
+        for n in 0..(self.y - 1) {
+            // Householder
+            for i in 0..(n + 1) {
+                tmp[i] = 0.0;
+            }
+            for i in (n + 1)..self.x {
+                tmp[i] = self.data[i * self.y + n];
+            }
+            n2 = 0.0;
+            for i in (n + 1)..self.x {
+                n2 += tmp[i] * tmp[i];
+            }
+            if tmp[n + 1] > 0.0 {
+                tmp[n + 1] += n2.sqrt();
+                n2 = (2.0 * n2.sqrt() * tmp[n + 1]).sqrt();
+            } else {
+                tmp[n + 1] -= n2.sqrt();
+                n2 = (-2.0 * n2.sqrt() * tmp[n + 1]).sqrt();
+            }
+            for i in (n + 1)..self.x {
+                tmp[i] /= n2;
+            }
+            // apply to A
+            for k in n..self.y {
+                n2 = 0.0;
+                for i in (n + 1)..self.x {
+                    n2 += self.data[i * self.y + k] * tmp[i];
+                }
+                for i in (n + 1)..self.x {
+                    self.data[i * self.y + k] -= 2.0 * n2 * tmp[i];
+                }
+            }
+            for i in (n + 2)..self.x {
+                self.data[i * self.y + n] = 0.0;
+            }
+            // apply to A
+            for k in n..self.x {
+                n2 = 0.0;
+                for i in (n + 1)..self.y {
+                    n2 += self.data[k * self.y + i] * tmp[i];
+                }
+                for i in (n + 1)..self.y {
+                    self.data[k * self.y + i] -= 2.0 * n2 * tmp[i];
+                }
+            }
+        }
+    }
+
+    // Hessenberg matrix decomposition, Givens
+    // in place
+    // without Q
+    pub fn ih_givens(&mut self) {
+        assert_eq!(self.x, self.y, "RMatrix.ih_givens(): square matrix only");
+        let mut x: f64;
+        let mut y: f64;
+        let mut c: f64;
+        let mut s: f64;
+        for n in 0..(self.y - 1) {
+            for i in (n + 2)..self.x {
+                if self.data[i * self.y + n] == 0.0 {
+                    continue;
+                }
+                // Givens
+                x = self.data[(n + 1) * self.y + n];
+                y = self.data[i * self.y + n];
+                c = x / (x * x + y * y).sqrt();
+                s = y / (x * x + y * y).sqrt();
+                for k in n..self.y {
+                    x = self.data[(n + 1) * self.y + k];
+                    y = self.data[i * self.y + k];
+                    self.data[(n + 1) * self.y + k] =  x * c + y * s;
+                    self.data[i * self.y + k] = -x * s + y * c;
+                }
+                self.data[i * self.y + n] = 0.0;
+                for k in n..self.x {
+                    x = self.data[k * self.y + n + 1];
+                    y = self.data[k * self.y + i];
+                    self.data[k * self.y + n + 1] =  x * c + y * s;
+                    self.data[k * self.y + i] = -x * s + y * c;
+                }
+            }
+        }
+    }
+
+    // tridiag matrix decomposition, Householder
+    // A must be (skew-)symmetric
+    // in place
+    // without Q
+    pub fn it_hh(&mut self) {
+        assert_eq!(self.x, self.y, "RMatrix.it_hh(): square matrix only");
+        let mut tmp: Vec<f64> = vec![0.0; self.x];
+        let mut n2: f64;
+        for n in 0..(self.y - 1) {
+            // Householder
+            for i in 0..(n + 1) {
+                tmp[i] = 0.0;
+            }
+            for i in (n + 1)..self.x {
+                tmp[i] = self.data[i * self.y + n];
+            }
+            n2 = 0.0;
+            for i in (n + 1)..self.x {
+                n2 += tmp[i] * tmp[i];
+            }
+            if tmp[n + 1] > 0.0 {
+                tmp[n + 1] += n2.sqrt();
+                n2 = (2.0 * n2.sqrt() * tmp[n + 1]).sqrt();
+            } else {
+                tmp[n + 1] -= n2.sqrt();
+                n2 = (-2.0 * n2.sqrt() * tmp[n + 1]).sqrt();
+            }
+            for i in (n + 1)..self.x {
+                tmp[i] /= n2;
+            }
+            // apply to A
+            for k in n..self.y {
+                n2 = 0.0;
+                for i in (n + 1)..self.x {
+                    n2 += self.data[i * self.y + k] * tmp[i];
+                }
+                for i in (n + 1)..self.x {
+                    self.data[i * self.y + k] -= 2.0 * n2 * tmp[i];
+                }
+            }
+            for i in (n + 2)..self.x {
+                self.data[i * self.y + n] = 0.0;
+            }
+            // apply to A
+            for k in n..self.x {
+                n2 = 0.0;
+                for i in (n + 1)..self.y {
+                    n2 += self.data[k * self.y + i] * tmp[i];
+                }
+                for i in (n + 1)..self.y {
+                    self.data[k * self.y + i] -= 2.0 * n2 * tmp[i];
+                }
+            }
+            for i in (n + 2)..self.y {
+                self.data[n * self.y + i] = 0.0;
+            }
+        }
+        if self.x > 1 {
+            if self.data[1] * self.data[self.y] < 0.0 {
+                // skew symmetric
+                for n in 0..(self.y - 1) {
+                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] - self.data[(n + 1) * self.y + n]) / 2.0;
+                    self.data[(n + 1) * self.y + n] = -1.0 * self.data[n * self.y + n + 1];
+                    self.data[(n + 1) * self.y + n + 1] = 0.0;
+                }
+            } else if self.data[1] * self.data[self.y] > 0.0 {
+                // symmetric
+                for n in 0..(self.y - 1) {
+                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] + self.data[(n + 1) * self.y + n]) / 2.0;
+                    self.data[(n + 1) * self.y + n] = self.data[n * self.y + n + 1];
+                }
+            }
+        }
+    }
+
+    // tridiag matrix decomposition, Givens
+    // A must be (skew-)symmetric
+    // in place
+    // without Q
+    pub fn it_givens(&mut self) {
+        assert_eq!(self.x, self.y, "RMatrix.it_givens(): square matrix only");
+        let mut x: f64;
+        let mut y: f64;
+        let mut c: f64;
+        let mut s: f64;
+        for n in 0..(self.y - 1) {
+            for i in (n + 2)..self.x {
+                if self.data[i * self.y + n] == 0.0 {
+                    continue;
+                }
+                // Givens
+                x = self.data[(n + 1) * self.y + n];
+                y = self.data[i * self.y + n];
+                c = x / (x * x + y * y).sqrt();
+                s = y / (x * x + y * y).sqrt();
+                for k in n..self.y {
+                    x = self.data[(n + 1) * self.y + k];
+                    y = self.data[i * self.y + k];
+                    self.data[(n + 1) * self.y + k] =  x * c + y * s;
+                    self.data[i * self.y + k] = -x * s + y * c;
+                }
+                self.data[i * self.y + n] = 0.0;
+                for k in n..self.x {
+                    x = self.data[k * self.y + n + 1];
+                    y = self.data[k * self.y + i];
+                    self.data[k * self.y + n + 1] =  x * c + y * s;
+                    self.data[k * self.y + i] = -x * s + y * c;
+                }
+                self.data[n * self.y + i] = 0.0;
+            }
+        }
+        if self.x > 1 {
+            if self.data[1] * self.data[self.y] < 0.0 {
+                // skew symmetric
+                for n in 0..(self.y - 1) {
+                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] - self.data[(n + 1) * self.y + n]) / 2.0;
+                    self.data[(n + 1) * self.y + n] = -1.0 * self.data[n * self.y + n + 1];
+                    self.data[(n + 1) * self.y + n + 1] = 0.0;
+                }
+            } else if self.data[1] * self.data[self.y] > 0.0 {
+                // symmetric
+                for n in 0..(self.y - 1) {
+                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] + self.data[(n + 1) * self.y + n]) / 2.0;
+                    self.data[(n + 1) * self.y + n] = self.data[n * self.y + n + 1];
+                }
+            }
+        }
+    }
+
+    // up/dn bidiag matrix decomposition, Householder
     // in place
     // without P or Q
     pub fn ib_hh(&mut self) {
@@ -1495,7 +2005,7 @@ impl RMatrix {
         }
     }
 
-    // up/dn bidiag decomposition, Givens
+    // up/dn bidiag matrix decomposition, Givens
     // in place
     // without P or Q
     pub fn ib_givens(&mut self) {

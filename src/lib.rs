@@ -4,7 +4,7 @@ mod r_matrix;
 mod tests {
     fn feq(n1: f64, n2: f64) -> bool {
         let result: f64 = (n1 - n2).abs();
-        if result > 0.0000000001 {
+        if result > 0.00000000000001 {
             false
         } else {
             true
@@ -166,6 +166,45 @@ mod tests {
         rand1.ib_givens();
     }
 
+    fn qr_test3(x: usize, _y: usize, fx: f64, _fy: f64) {
+        use r_matrix::RMatrix;
+        let rand = RMatrix::gen_rand(x, x);
+
+        let mut rand1 = rand.clone();
+        let q = rand1.iqhq_hh();
+        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
+        assert!(feq((&(&q ^ &rand1) ^ &!&q).norm_f() / rand.norm_f(), 1.0));
+
+        let mut rand1 = rand.clone();
+        let q = rand1.iqhq_givens();
+        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
+        assert!(feq((&(&q ^ &rand1) ^ &!&q).norm_f() / rand.norm_f(), 1.0));
+
+        let mut rand1 = rand.clone();
+        rand1.ih_hh();
+
+        let mut rand1 = rand.clone();
+        rand1.ih_givens();
+
+        let rand = RMatrix::gen_rand_sym(x);
+
+        let mut rand1 = rand.clone();
+        let q = rand1.iqtq_hh();
+        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
+        assert!(feq((&(&q ^ &rand1) ^ &!&q).norm_f() / rand.norm_f(), 1.0));
+
+        let mut rand1 = rand.clone();
+        let q = rand1.iqtq_givens();
+        assert!(feq((&(&!&q ^ &q) - &RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
+        assert!(feq((&(&q ^ &rand1) ^ &!&q).norm_f() / rand.norm_f(), 1.0));
+
+        let mut rand1 = rand.clone();
+        rand1.it_hh();
+
+        let mut rand1 = rand.clone();
+        rand1.it_givens();
+    }
+
     #[test]
     fn qr_long() {
         qr_test2(50, 200, 50.0, 200.0);
@@ -175,6 +214,7 @@ mod tests {
     fn qr_square() {
         qr_test1(100, 100, 100.0, 100.0);
         qr_test2(100, 100, 100.0, 100.0);
+        qr_test3(100, 100, 100.0, 100.0);
     }
 
     #[test]
