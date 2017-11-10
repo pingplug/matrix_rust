@@ -11,7 +11,7 @@ use std::ops::Mul;
 use std::ops::MulAssign;
 use std::ops::Div;
 use std::ops::DivAssign;
-// dot product
+// matrix multiplication
 // ^ <<= >>=
 use std::ops::BitXor;
 use std::ops::ShlAssign;
@@ -903,6 +903,7 @@ impl RMatrix {
         let mut tmp_x: Vec<f64> = vec![0.0; self.x];
         let mut tmp_y: Vec<f64> = vec![0.0; self.y];
         let mut n2: f64;
+        let mut n: usize = 0;
         for i in 0..self.x {
             ret_p_data[i * self.x + i] = 1.0;
         }
@@ -910,7 +911,7 @@ impl RMatrix {
             ret_q_data[i * self.y + i] = 1.0;
         }
         if self.x < self.y {
-            for n in 0..(self.x - 1) {
+            loop {
                 // Householder
                 for i in 0..n {
                     tmp_y[i] = 0.0;
@@ -955,6 +956,11 @@ impl RMatrix {
                         ret_q_data[i * self.y + k] -= 2.0 * n2 * tmp_y[i];
                     }
                 }
+
+                if (n + 1) == self.x {
+                    break;
+                }
+
                 // Householder
                 for i in 0..(n + 1) {
                     tmp_x[i] = 0.0;
@@ -999,9 +1005,11 @@ impl RMatrix {
                         ret_p_data[k * self.x + i] -= 2.0 * n2 * tmp_x[i];
                     }
                 }
+
+                n += 1;
             }
         } else {
-            for n in 0..(self.y - 1) {
+            loop {
                 // Householder
                 for i in 0..n {
                     tmp_x[i] = 0.0;
@@ -1046,6 +1054,11 @@ impl RMatrix {
                         ret_p_data[k * self.x + i] -= 2.0 * n2 * tmp_x[i];
                     }
                 }
+
+                if (n + 1) == self.y {
+                    break;
+                }
+
                 // Householder
                 for i in 0..(n + 1) {
                     tmp_y[i] = 0.0;
@@ -1090,6 +1103,8 @@ impl RMatrix {
                         ret_q_data[i * self.y + k] -= 2.0 * n2 * tmp_y[i];
                     }
                 }
+
+                n += 1;
             }
         }
         (RMatrix {
@@ -1121,8 +1136,11 @@ impl RMatrix {
             ret_q_data[i * self.y + i] = 1.0;
         }
         if self.x < self.y {
-            for n in 0..(self.x - 1) {
+            for n in 0..self.x {
                 for j in (n + 1)..self.y {
+                    if self.data[n * self.y + j] == 0.0 {
+                        continue;
+                    }
                     // Givens
                     x = self.data[n * self.y + n];
                     y = self.data[n * self.y + j];
@@ -1144,6 +1162,9 @@ impl RMatrix {
                     }
                 }
                 for i in (n + 2)..self.x {
+                    if self.data[i * self.y + n] == 0.0 {
+                        continue;
+                    }
                     // Givens
                     x = self.data[(n + 1) * self.y + n];
                     y = self.data[i * self.y + n];
@@ -1166,8 +1187,11 @@ impl RMatrix {
                 }
             }
         } else {
-            for n in 0..(self.y - 1) {
+            for n in 0..self.y {
                 for i in (n + 1)..self.x {
+                    if self.data[i * self.y + n] == 0.0 {
+                        continue;
+                    }
                     // Givens
                     x = self.data[n * self.y + n];
                     y = self.data[i * self.y + n];
@@ -1189,6 +1213,9 @@ impl RMatrix {
                     }
                 }
                 for j in (n + 2)..self.y {
+                    if self.data[n * self.y + j] == 0.0 {
+                        continue;
+                    }
                     // Givens
                     x = self.data[n * self.y + n + 1];
                     y = self.data[n * self.y + j];
@@ -1287,7 +1314,7 @@ impl RMatrix {
         }
     }
 
-    // two QR decompositions, Givens
+    // two QR decompositions for bidiag matrix, Givens
     // in place
     // B = P ^ R ^ Q
     // for SVD
@@ -1308,8 +1335,9 @@ impl RMatrix {
         let mut tmp_x: Vec<f64> = vec![0.0; self.x];
         let mut tmp_y: Vec<f64> = vec![0.0; self.y];
         let mut n2: f64;
+        let mut n: usize = 0;
         if self.x < self.y {
-            for n in 0..(self.x - 1) {
+            loop {
                 // Householder
                 for i in 0..n {
                     tmp_y[i] = 0.0;
@@ -1344,6 +1372,11 @@ impl RMatrix {
                 for i in (n + 1)..self.y {
                     self.data[n * self.y + i] = 0.0;
                 }
+
+                if (n + 1) == self.x {
+                    break;
+                }
+
                 // Householder
                 for i in 0..(n + 1) {
                     tmp_x[i] = 0.0;
@@ -1378,9 +1411,11 @@ impl RMatrix {
                 for i in (n + 2)..self.x {
                     self.data[i * self.y + n] = 0.0;
                 }
+
+                n += 1;
             }
         } else {
-            for n in 0..(self.y - 1) {
+            loop {
                 // Householder
                 for i in 0..n {
                     tmp_x[i] = 0.0;
@@ -1415,6 +1450,11 @@ impl RMatrix {
                 for i in (n + 1)..self.x {
                     self.data[i * self.y + n] = 0.0;
                 }
+
+                if (n + 1) == self.y {
+                    break;
+                }
+
                 // Householder
                 for i in 0..(n + 1) {
                     tmp_y[i] = 0.0;
@@ -1449,6 +1489,8 @@ impl RMatrix {
                 for i in (n + 2)..self.y {
                     self.data[n * self.y + i] = 0.0;
                 }
+
+                n += 1;
             }
         }
     }
@@ -1464,6 +1506,9 @@ impl RMatrix {
         if self.x < self.y {
             for n in 0..(self.x - 1) {
                 for j in (n + 1)..self.y {
+                    if self.data[n * self.y + j] == 0.0 {
+                        continue;
+                    }
                     // Givens
                     x = self.data[n * self.y + n];
                     y = self.data[n * self.y + j];
@@ -1478,6 +1523,9 @@ impl RMatrix {
                     self.data[n * self.y + j] = 0.0;
                 }
                 for i in (n + 2)..self.x {
+                    if self.data[i * self.y + n] == 0.0 {
+                        continue;
+                    }
                     // Givens
                     x = self.data[(n + 1) * self.y + n];
                     y = self.data[i * self.y + n];
@@ -1495,6 +1543,9 @@ impl RMatrix {
         } else {
             for n in 0..(self.y - 1) {
                 for i in (n + 1)..self.x {
+                    if self.data[i * self.y + n] == 0.0 {
+                        continue;
+                    }
                     // Givens
                     x = self.data[n * self.y + n];
                     y = self.data[i * self.y + n];
@@ -1509,6 +1560,9 @@ impl RMatrix {
                     self.data[i * self.y + n] = 0.0;
                 }
                 for j in (n + 2)..self.y {
+                    if self.data[n * self.y + j] == 0.0 {
+                        continue;
+                    }
                     // Givens
                     x = self.data[n * self.y + n + 1];
                     y = self.data[n * self.y + j];
@@ -1576,7 +1630,7 @@ impl RMatrix {
         }
     }
 
-    // two QR decompositions, Givens
+    // two QR decompositions for bidiag matrix, Givens
     // in place
     // without P or Q
     // for SVD
@@ -1992,8 +2046,8 @@ impl DivAssign<f64> for RMatrix {
     }
 }
 
-// dot product
-// out of place dot product
+// matrix multiplication
+// out of place matrix multiplication
 impl<'a, 'b> BitXor<&'b RMatrix> for &'a RMatrix {
     type Output = RMatrix;
 
@@ -2021,7 +2075,7 @@ impl<'a, 'b> BitXor<&'b RMatrix> for &'a RMatrix {
     }
 }
 
-// in place left dot product
+// in place left matrix multiplication
 // number or square matrix only
 // fast, 0.6x time of BitXor
 impl<'b> ShlAssign<&'b RMatrix> for RMatrix {
@@ -2046,7 +2100,7 @@ impl<'b> ShlAssign<&'b RMatrix> for RMatrix {
     }
 }
 
-// in place right dot product
+// in place right matrix multiplication
 // number or square matrix only
 // slow, 2.5x time of Shl or 1.5x time of BitXor
 impl<'b> ShrAssign<&'b RMatrix> for RMatrix {
@@ -2134,6 +2188,7 @@ impl<'a> Not for &'a mut RMatrix {
 }
 
 // get parallel
+// cos<A | B, B> = 1
 // out of place
 // vector only
 impl<'a, 'b> BitOr<&'b RMatrix> for &'a RMatrix {
@@ -2173,6 +2228,7 @@ impl<'b> BitOrAssign<&'b RMatrix> for RMatrix {
 }
 
 // get perpendicular
+// cos<A % B, B> = 0
 // out of place
 // vector only
 impl<'a, 'b> Rem<&'b RMatrix> for &'a RMatrix {
