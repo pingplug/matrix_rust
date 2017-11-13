@@ -117,6 +117,16 @@ impl RMatrix {
         }
     }
 
+    // generate a matrix from a Vec
+    pub fn gen_matrix(m: usize, n: usize, data: Vec<f64>) -> RMatrix {
+        assert_eq!(data.len(), m * n, "RMatrix::gen_matrix(): vector size doesn't match");
+        RMatrix {
+            x: m,
+            y: n,
+            data: data.clone()
+        }
+    }
+
     // generate a matrix from a vector, as diagonal element
     pub fn gen_diag(m: usize, n: usize, diag: Vec<f64>) -> RMatrix {
         let min = m.min(n);
@@ -179,6 +189,37 @@ impl RMatrix {
         }
     }
 
+    // generate a tridiagonal matrix, all elements are random number between 0 and 1
+    pub fn gen_rand_tri(m: usize, n: usize) -> RMatrix {
+        let mut ret_data: Vec<f64> = vec![0.0; m * n];
+        let min = m.min(n);
+        for i in 0..(min - 1) {
+            ret_data[i * n + (i + 1)] = rand::thread_rng().gen_range(0.0, 1.0);
+            ret_data[(i + 1) * n + i] = ret_data[i * n + (i + 1)];
+            ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
+        }
+        ret_data[(min - 1) * (n + 1)] = rand::thread_rng().gen_range(0.0, 1.0);
+        RMatrix {
+            x: m,
+            y: n,
+            data: ret_data
+        }
+    }
+
+    // generate a diagonal matrix, all elements are random number between 0 and 1
+    pub fn gen_rand_diag(m: usize, n: usize) -> RMatrix {
+        let mut ret_data: Vec<f64> = vec![0.0; m * n];
+        let min = m.min(n);
+        for i in 0..min {
+            ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
+        }
+        RMatrix {
+            x: m,
+            y: n,
+            data: ret_data
+        }
+    }
+
     // generate a symmetric matrix, all elements are random number between 0 and 1
     pub fn gen_rand_sym(n: usize) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; n * n];
@@ -189,6 +230,22 @@ impl RMatrix {
             }
             ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
         }
+        RMatrix {
+            x: n,
+            y: n,
+            data: ret_data
+        }
+    }
+
+    // generate a symmetric tridiagonal matrix, all elements are random number between 0 and 1
+    pub fn gen_rand_sym_tri(n: usize) -> RMatrix {
+        let mut ret_data: Vec<f64> = vec![0.0; n * n];
+        for i in 0..(n - 1) {
+            ret_data[i * n + (i + 1)] = rand::thread_rng().gen_range(0.0, 1.0);
+            ret_data[(i + 1) * n + i] = ret_data[i * n + (i + 1)];
+            ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
+        }
+        ret_data[n * n - 1] = rand::thread_rng().gen_range(0.0, 1.0);
         RMatrix {
             x: n,
             y: n,
@@ -213,24 +270,51 @@ impl RMatrix {
         }
     }
 
-    // 1-norm of a VECTOR
+    // generate a skew symmetric tridiagonal matrix, all elements are random number between 0 and 1
+    pub fn gen_rand_ssym_tri(n: usize) -> RMatrix {
+        let mut ret_data: Vec<f64> = vec![0.0; n * n];
+        for i in 0..(n - 1) {
+            ret_data[i * n + (i + 1)] = rand::thread_rng().gen_range(0.0, 1.0);
+            ret_data[(i + 1) * n + i] = -1.0 * ret_data[i * n + (i + 1)];
+        }
+        RMatrix {
+            x: n,
+            y: n,
+            data: ret_data
+        }
+    }
+
+    // 1-norm
     pub fn norm_1(&self) -> f64 {
-        assert_eq!(self.y, 1, "RMatrix.norm_1(): vector only");
+        let mut sum: f64;
         let mut ret: f64 = 0.0;
-        for i in 0..self.x {
-            ret += self.data[i].abs();
+        for j in 0..self.y {
+            sum = 0.0;
+            for i in 0..self.x {
+                sum += self.data[i * self.y + j].abs();
+            }
+            ret = ret.max(sum);
         }
         ret
     }
 
-    // 2-norm of a VECTOR
+    // 2-norm
     pub fn norm_2(&self) -> f64 {
-        assert_eq!(self.y, 1, "RMatrix.norm_2(): vector only");
+        if self.y != 1 {
+            self.norm_2_mat();
+        }
         let mut ret: f64 = 0.0;
         for i in 0..self.x {
             ret += self.data[i] * self.data[i];
         }
         ret.sqrt()
+    }
+
+    // 2-norm of a matrix, SVD
+    fn norm_2_mat(&self) -> f64 {
+        let mut tmp = self.clone();
+        tmp.isv_qr();
+        tmp.data[0]
     }
 
     // f-norm of a matrix
@@ -242,14 +326,26 @@ impl RMatrix {
         ret.sqrt()
     }
 
-    // infinity-norm of a VECTOR
+    // infinity-norm
     pub fn norm_i(&self) -> f64 {
-        assert_eq!(self.y, 1, "RMatrix.norm_i(): vector only");
-        let mut ret: f64 = self.data[0];
-        for i in 1..self.x {
-            ret = ret.max(self.data[i]);
+        let mut sum: f64;
+        let mut ret: f64 = 0.0;
+        for i in 0..self.x {
+            sum = 0.0;
+            for j in 0..self.y {
+                sum += self.data[i * self.y + j].abs();
+            }
+            ret = ret.max(sum);
         }
         ret
+    }
+
+    // condition number of a matrix, SVD
+    pub fn cond(&self) -> f64 {
+        let mut tmp = self.clone();
+        tmp.isv_qr();
+        let min = tmp.x.min(tmp.y);
+        tmp.data[0] / tmp.data[min * tmp.y + min]
     }
 
     // get the maximum element of a matrix
@@ -271,6 +367,7 @@ impl RMatrix {
     }
 
     // Cholesky decomposition
+    // A must be symmetric, positive-define
     // A = L ^ !L
     pub fn cholesky(&self) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.cholesky(): square matrix only");
@@ -297,6 +394,7 @@ impl RMatrix {
     }
 
     // Cholesky decomposition
+    // A must be symmetric, positive-define
     // A = L ^ !L
     pub fn pp_cholesky(&self) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.pp_cholesky(): square matrix only");
@@ -1020,7 +1118,7 @@ impl RMatrix {
         }
     }
 
-    // tridiag matrix decomposition, Householder
+    // tridiagonal matrix decomposition, Householder
     // A must be (skew-)symmetric
     // in place
     // A = Q ^ T ^ !Q
@@ -1114,7 +1212,7 @@ impl RMatrix {
         }
     }
 
-    // tridiag matrix decomposition, Givens
+    // tridiagonal matrix decomposition, Givens
     // A must be (skew-)symmetric
     // in place
     // A = Q ^ T ^ !Q
@@ -1184,7 +1282,7 @@ impl RMatrix {
         }
     }
 
-    // up/dn bidiag matrix decomposition, Householder
+    // up/dn bidiagonal matrix decomposition, Householder
     // in place
     // A = P ^ B ^ Q
     pub fn ipqb_hh(&mut self) -> (RMatrix, RMatrix) {
@@ -1409,7 +1507,7 @@ impl RMatrix {
         })
     }
 
-    // up/dn bidiag matrix decomposition, Givens
+    // up/dn bidiagonal matrix decomposition, Givens
     // in place
     // A = P ^ B ^ Q
     pub fn ipqb_givens(&mut self) -> (RMatrix, RMatrix) {
@@ -1540,7 +1638,7 @@ impl RMatrix {
         })
     }
 
-    // QR decomposition for up bidiag, Givens
+    // QR decomposition for up bidiagonal matrix, Givens
     // in place
     // B = R ^ Q
     // for SVD
@@ -1572,7 +1670,7 @@ impl RMatrix {
         }
     }
 
-    // QR decomposition for down bidiag, Givens
+    // QR decomposition for down bidiagonal matrix, Givens
     // in place
     // B = P ^ R
     // for SVD
@@ -1604,7 +1702,7 @@ impl RMatrix {
         }
     }
 
-    // two QR decompositions for bidiag matrix, Givens
+    // two QR decompositions for bidiagonal matrix, Givens
     // in place
     // B = P ^ R ^ Q
     // for SVD
@@ -1709,7 +1807,7 @@ impl RMatrix {
         }
     }
 
-    // tridiag matrix decomposition, Householder
+    // tridiagonal matrix decomposition, Householder
     // A must be (skew-)symmetric
     // in place
     // without Q
@@ -1784,7 +1882,7 @@ impl RMatrix {
         }
     }
 
-    // tridiag matrix decomposition, Givens
+    // tridiagonal matrix decomposition, Givens
     // A must be (skew-)symmetric
     // in place
     // without Q
@@ -1838,7 +1936,7 @@ impl RMatrix {
         }
     }
 
-    // up/dn bidiag matrix decomposition, Householder
+    // up/dn bidiagonal matrix decomposition, Householder
     // in place
     // without P or Q
     pub fn ib_hh(&mut self) {
@@ -2005,7 +2103,7 @@ impl RMatrix {
         }
     }
 
-    // up/dn bidiag matrix decomposition, Givens
+    // up/dn bidiagonal matrix decomposition, Givens
     // in place
     // without P or Q
     pub fn ib_givens(&mut self) {
@@ -2090,7 +2188,7 @@ impl RMatrix {
         }
     }
 
-    // QR decomposition for up bidiag, Givens
+    // QR decomposition for up bidiagonal matrix, Givens
     // in place
     // without Q
     // for SVD
@@ -2115,7 +2213,7 @@ impl RMatrix {
         }
     }
 
-    // QR decomposition for down bidiag, Givens
+    // QR decomposition for down bidiagonal matrix, Givens
     // in place
     // without P
     // for SVD
@@ -2140,7 +2238,7 @@ impl RMatrix {
         }
     }
 
-    // two QR decompositions for bidiag matrix, Givens
+    // two QR decompositions for bidiagonal matrix, Givens
     // in place
     // without P or Q
     // for SVD
