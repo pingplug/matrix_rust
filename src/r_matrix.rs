@@ -317,7 +317,7 @@ impl RMatrix {
         tmp.data[0]
     }
 
-    // f-norm of a matrix
+    // frobenius-norm of a matrix
     pub fn norm_f(&self) -> f64 {
         let mut ret: f64 = 0.0;
         for i in 0..(self.x * self.y) {
@@ -345,7 +345,7 @@ impl RMatrix {
         let mut tmp = self.clone();
         tmp.isv_qr();
         let min = tmp.x.min(tmp.y);
-        tmp.data[0] / tmp.data[min * tmp.y + min]
+        tmp.data[0] / tmp.data[(min - 1) * (tmp.y + 1)]
     }
 
     // get the maximum element of a matrix
@@ -364,6 +364,51 @@ impl RMatrix {
             ret = ret.min(self.data[i]);
         }
         ret
+    }
+
+    // calculate the square of A
+    // B = A ^ !A
+    pub fn square(&self) -> RMatrix {
+        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut sum: f64;
+        for i in 0..self.x {
+            for j in i..self.x {
+                sum = 0.0;
+                for k in 0..self.y {
+                    sum += self.data[i * self.y + k] * self.data[j * self.y + k];
+                }
+                ret_data[i * self.x + j] = sum;
+                ret_data[j * self.x + i] = sum;
+            }
+        }
+        RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_data
+        }
+    }
+
+    // calculate the square of A
+    // A = A ^ !A
+    // in place
+    // A must be square
+    pub fn isquare(&mut self) {
+        assert_eq!(self.x, self.y, "RMatrix.isquare(): square matrix only");
+        let mut tmp: Vec<f64>;
+        let mut sum: f64;
+        for i in 0..self.x {
+            tmp = self.get_row(i);
+            for j in i..self.x {
+                sum = 0.0;
+                for k in 0..self.y {
+                    sum += tmp[k] * self.data[j * self.y + k];
+                }
+                self.data[i * self.x + j] = sum;
+            }
+            for j in 0..i {
+                self.data[i * self.x + j] = self.data[j * self.x + i];
+            }
+        }
     }
 
     // Cholesky decomposition
