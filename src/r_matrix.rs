@@ -253,6 +253,48 @@ impl RMatrix {
         }
     }
 
+    // generate a symmetric matrix from given eigenvalues
+    // B = Q ^ A ^ !Q, Q: n Givens
+    pub fn gen_rand_sym_eig(n: usize, eig: Vec<f64>) -> RMatrix {
+        assert_eq!(eig.len(), n, "RMatrix::gen_rand_sym_eig(): vector size doesn't match");
+        let mut ret_data: Vec<f64> = vec![0.0; n * n];
+        let mut x: f64;
+        let mut y: f64;
+        let mut c: f64;
+        let mut s: f64;
+        for i in 0..n {
+            ret_data[i * n + i] = eig[i];
+        }
+        for k in 0..(n - 1) {
+            c = rand::thread_rng().gen_range(0.0, 1.0);
+            s = (1.0 - c * c).sqrt();
+            for i in 0..n {
+                x = ret_data[i * n + k];
+                y = ret_data[i * n + k + 1];
+                ret_data[i * n + k] = x * c + y * s;
+                ret_data[i * n + k + 1] = -x * s + y * c;
+            }
+            for j in 0..n {
+                x = ret_data[k * n + j];
+                y = ret_data[(k + 1) * n + j];
+                ret_data[k * n + j] = x * c + y * s;
+                ret_data[(k + 1) * n + j] = -x * s + y * c;
+            }
+        }
+        // symmetric
+        for i in 0..(n - 1) {
+            for j in 0..i {
+                ret_data[i * n + j] = (ret_data[i * n + j] + ret_data[j * n + i]) / 2.0;
+                ret_data[j * n + i] = ret_data[i * n + j];
+            }
+        }
+        RMatrix {
+            x: n,
+            y: n,
+            data: ret_data
+        }
+    }
+
     // generate a skew symmetric matrix, all elements are random number between 0 and 1
     pub fn gen_rand_ssym(n: usize) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; n * n];
@@ -790,6 +832,7 @@ impl RMatrix {
             for i in 0..self.x {
                 n2 += tmp[i] * tmp[i];
             }
+            assert_ne!(n2, 0.0, "RMatrix.cqr_cgs(): break!");
             n2 = n2.sqrt();
             ret_r_data[j * self.y + j] = n2;
             for i in 0..self.x {
@@ -832,6 +875,7 @@ impl RMatrix {
             for i in 0..self.x {
                 n2 += tmp[i] * tmp[i];
             }
+            assert_ne!(n2, 0.0, "RMatrix.cqr_mgs(): break!");
             n2 = n2.sqrt();
             ret_r_data[j * self.y + j] = n2;
             for i in 0..self.x {
@@ -872,6 +916,9 @@ impl RMatrix {
             n2 = 0.0;
             for i in j..self.x {
                 n2 += tmp[i] * tmp[i];
+            }
+            if n2 == tmp[j] * tmp[j] {
+                continue;
             }
             if tmp[j] > 0.0 {
                 tmp[j] += n2.sqrt();
@@ -938,6 +985,9 @@ impl RMatrix {
             for i in j..self.x {
                 n2 += tmp[i] * tmp[i];
             }
+            if n2 == tmp[j] * tmp[j] {
+                continue;
+            }
             if tmp[j] > 0.0 {
                 tmp[j] += n2.sqrt();
                 n2 = (2.0 * n2.sqrt() * tmp[j]).sqrt();
@@ -978,6 +1028,9 @@ impl RMatrix {
         }
         for i in 0..self.x {
             for j in 0..i.min(self.y) {
+                if self.data[i * self.y + j] == 0.0 {
+                    continue;
+                }
                 // Givens
                 x = ret_r_data[j * self.y + j];
                 y = ret_r_data[i * self.y + j];
@@ -1021,6 +1074,9 @@ impl RMatrix {
         let mut s: f64;
         for i in 0..self.x {
             for j in 0..i.min(self.y) {
+                if self.data[i * self.y + j] == 0.0 {
+                    continue;
+                }
                 // Givens
                 x = self.data[j * self.y + j];
                 y = self.data[i * self.y + j];
@@ -1060,6 +1116,9 @@ impl RMatrix {
             for i in (n + 1)..self.x {
                 n2 += tmp[i] * tmp[i];
             }
+            if n2 == tmp[n + 1] * tmp[n + 1] {
+                continue;
+            }
             if tmp[n + 1] > 0.0 {
                 tmp[n + 1] += n2.sqrt();
                 n2 = (2.0 * n2.sqrt() * tmp[n + 1]).sqrt();
@@ -1094,7 +1153,7 @@ impl RMatrix {
                 }
             }
             // apply to A
-            for k in n..self.x {
+            for k in 0..self.x {
                 n2 = 0.0;
                 for i in (n + 1)..self.y {
                     n2 += self.data[k * self.y + i] * tmp[i];
@@ -1148,7 +1207,7 @@ impl RMatrix {
                     ret_q_data[k * self.x + n + 1] =  x * c + y * s;
                     ret_q_data[k * self.x + i] = -x * s + y * c;
                 }
-                for k in n..self.x {
+                for k in 0..self.x {
                     x = self.data[k * self.y + n + 1];
                     y = self.data[k * self.y + i];
                     self.data[k * self.y + n + 1] =  x * c + y * s;
@@ -1186,6 +1245,9 @@ impl RMatrix {
             n2 = 0.0;
             for i in (n + 1)..self.x {
                 n2 += tmp[i] * tmp[i];
+            }
+            if n2 == tmp[n + 1] * tmp[n + 1] {
+                continue;
             }
             if tmp[n + 1] > 0.0 {
                 tmp[n + 1] += n2.sqrt();
@@ -1356,37 +1418,39 @@ impl RMatrix {
                 for i in n..self.y {
                     n2 += tmp_y[i] * tmp_y[i];
                 }
-                if tmp_y[n] > 0.0 {
-                    tmp_y[n] += n2.sqrt();
-                    n2 = (2.0 * n2.sqrt() * tmp_y[n]).sqrt();
-                } else {
-                    tmp_y[n] -= n2.sqrt();
-                    n2 = (-2.0 * n2.sqrt() * tmp_y[n]).sqrt();
-                }
-                for i in n..self.y {
-                    tmp_y[i] /= n2;
-                }
-                // apply to A
-                for k in n..self.x {
-                    n2 = 0.0;
-                    for i in n..self.y {
-                        n2 += self.data[k * self.y + i] * tmp_y[i];
+                if n2 != tmp_y[n] * tmp_y[n] {
+                    if tmp_y[n] > 0.0 {
+                        tmp_y[n] += n2.sqrt();
+                        n2 = (2.0 * n2.sqrt() * tmp_y[n]).sqrt();
+                    } else {
+                        tmp_y[n] -= n2.sqrt();
+                        n2 = (-2.0 * n2.sqrt() * tmp_y[n]).sqrt();
                     }
                     for i in n..self.y {
-                        self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                        tmp_y[i] /= n2;
                     }
-                }
-                for i in (n + 1)..self.y {
-                    self.data[n * self.y + i] = 0.0;
-                }
-                // get Q
-                for k in 0..self.y {
-                    n2 = 0.0;
-                    for i in n..self.y {
-                        n2 += ret_q_data[i * self.y + k] * tmp_y[i];
+                    // apply to A
+                    for k in n..self.x {
+                        n2 = 0.0;
+                        for i in n..self.y {
+                            n2 += self.data[k * self.y + i] * tmp_y[i];
+                        }
+                        for i in n..self.y {
+                            self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                        }
                     }
-                    for i in n..self.y {
-                        ret_q_data[i * self.y + k] -= 2.0 * n2 * tmp_y[i];
+                    for i in (n + 1)..self.y {
+                        self.data[n * self.y + i] = 0.0;
+                    }
+                    // get Q
+                    for k in 0..self.y {
+                        n2 = 0.0;
+                        for i in n..self.y {
+                            n2 += ret_q_data[i * self.y + k] * tmp_y[i];
+                        }
+                        for i in n..self.y {
+                            ret_q_data[i * self.y + k] -= 2.0 * n2 * tmp_y[i];
+                        }
                     }
                 }
 
@@ -1405,37 +1469,39 @@ impl RMatrix {
                 for i in (n + 1)..self.x {
                     n2 += tmp_x[i] * tmp_x[i];
                 }
-                if tmp_x[n + 1] > 0.0 {
-                    tmp_x[n + 1] += n2.sqrt();
-                    n2 = (2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
-                } else {
-                    tmp_x[n + 1] -= n2.sqrt();
-                    n2 = (-2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
-                }
-                for i in (n + 1)..self.x {
-                    tmp_x[i] /= n2;
-                }
-                // apply to A
-                for k in n..self.y {
-                    n2 = 0.0;
-                    for i in (n + 1)..self.x {
-                        n2 += self.data[i * self.y + k] * tmp_x[i];
+                if n2 != tmp_x[n + 1] * tmp_x[n + 1] {
+                    if tmp_x[n + 1] > 0.0 {
+                        tmp_x[n + 1] += n2.sqrt();
+                        n2 = (2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
+                    } else {
+                        tmp_x[n + 1] -= n2.sqrt();
+                        n2 = (-2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
                     }
                     for i in (n + 1)..self.x {
-                        self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                        tmp_x[i] /= n2;
                     }
-                }
-                for i in (n + 2)..self.x {
-                    self.data[i * self.y + n] = 0.0;
-                }
-                // get P
-                for k in 0..self.x {
-                    n2 = 0.0;
-                    for i in (n + 1)..self.x {
-                        n2 += ret_p_data[k * self.x + i] * tmp_x[i];
+                    // apply to A
+                    for k in n..self.y {
+                        n2 = 0.0;
+                        for i in (n + 1)..self.x {
+                            n2 += self.data[i * self.y + k] * tmp_x[i];
+                        }
+                        for i in (n + 1)..self.x {
+                            self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                        }
                     }
-                    for i in (n + 1)..self.x {
-                        ret_p_data[k * self.x + i] -= 2.0 * n2 * tmp_x[i];
+                    for i in (n + 2)..self.x {
+                        self.data[i * self.y + n] = 0.0;
+                    }
+                    // get P
+                    for k in 0..self.x {
+                        n2 = 0.0;
+                        for i in (n + 1)..self.x {
+                            n2 += ret_p_data[k * self.x + i] * tmp_x[i];
+                        }
+                        for i in (n + 1)..self.x {
+                            ret_p_data[k * self.x + i] -= 2.0 * n2 * tmp_x[i];
+                        }
                     }
                 }
 
@@ -1454,37 +1520,39 @@ impl RMatrix {
                 for i in n..self.x {
                     n2 += tmp_x[i] * tmp_x[i];
                 }
-                if tmp_x[n] > 0.0 {
-                    tmp_x[n] += n2.sqrt();
-                    n2 = (2.0 * n2.sqrt() * tmp_x[n]).sqrt();
-                } else {
-                    tmp_x[n] -= n2.sqrt();
-                    n2 = (-2.0 * n2.sqrt() * tmp_x[n]).sqrt();
-                }
-                for i in n..self.x {
-                    tmp_x[i] /= n2;
-                }
-                // apply to A
-                for k in n..self.y {
-                    n2 = 0.0;
-                    for i in n..self.x {
-                        n2 += self.data[i * self.y + k] * tmp_x[i];
+                if n2 != tmp_x[n] * tmp_x[n] {
+                    if tmp_x[n] > 0.0 {
+                        tmp_x[n] += n2.sqrt();
+                        n2 = (2.0 * n2.sqrt() * tmp_x[n]).sqrt();
+                    } else {
+                        tmp_x[n] -= n2.sqrt();
+                        n2 = (-2.0 * n2.sqrt() * tmp_x[n]).sqrt();
                     }
                     for i in n..self.x {
-                        self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                        tmp_x[i] /= n2;
                     }
-                }
-                for i in (n + 1)..self.x {
-                    self.data[i * self.y + n] = 0.0;
-                }
-                // get P
-                for k in 0..self.x {
-                    n2 = 0.0;
-                    for i in n..self.x {
-                        n2 += ret_p_data[k * self.x + i] * tmp_x[i];
+                    // apply to A
+                    for k in n..self.y {
+                        n2 = 0.0;
+                        for i in n..self.x {
+                            n2 += self.data[i * self.y + k] * tmp_x[i];
+                        }
+                        for i in n..self.x {
+                            self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                        }
                     }
-                    for i in n..self.x {
-                        ret_p_data[k * self.x + i] -= 2.0 * n2 * tmp_x[i];
+                    for i in (n + 1)..self.x {
+                        self.data[i * self.y + n] = 0.0;
+                    }
+                    // get P
+                    for k in 0..self.x {
+                        n2 = 0.0;
+                        for i in n..self.x {
+                            n2 += ret_p_data[k * self.x + i] * tmp_x[i];
+                        }
+                        for i in n..self.x {
+                            ret_p_data[k * self.x + i] -= 2.0 * n2 * tmp_x[i];
+                        }
                     }
                 }
 
@@ -1503,37 +1571,39 @@ impl RMatrix {
                 for i in (n + 1)..self.y {
                     n2 += tmp_y[i] * tmp_y[i];
                 }
-                if tmp_y[n + 1] > 0.0 {
-                    tmp_y[n + 1] += n2.sqrt();
-                    n2 = (2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
-                } else {
-                    tmp_y[n + 1] -= n2.sqrt();
-                    n2 = (-2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
-                }
-                for i in (n + 1)..self.y {
-                    tmp_y[i] /= n2;
-                }
-                // apply to A
-                for k in n..self.x {
-                    n2 = 0.0;
-                    for i in (n + 1)..self.y {
-                        n2 += self.data[k * self.y + i] * tmp_y[i];
+                if n2 != tmp_y[n + 1] * tmp_y[n + 1] {
+                    if tmp_y[n + 1] > 0.0 {
+                        tmp_y[n + 1] += n2.sqrt();
+                        n2 = (2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
+                    } else {
+                        tmp_y[n + 1] -= n2.sqrt();
+                        n2 = (-2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
                     }
                     for i in (n + 1)..self.y {
-                        self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                        tmp_y[i] /= n2;
                     }
-                }
-                for i in (n + 2)..self.y {
-                    self.data[n * self.y + i] = 0.0;
-                }
-                // get Q
-                for k in 0..self.y {
-                    n2 = 0.0;
-                    for i in (n + 1)..self.y {
-                        n2 += ret_q_data[i * self.y + k] * tmp_y[i];
+                    // apply to A
+                    for k in n..self.x {
+                        n2 = 0.0;
+                        for i in (n + 1)..self.y {
+                            n2 += self.data[k * self.y + i] * tmp_y[i];
+                        }
+                        for i in (n + 1)..self.y {
+                            self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                        }
                     }
-                    for i in (n + 1)..self.y {
-                        ret_q_data[i * self.y + k] -= 2.0 * n2 * tmp_y[i];
+                    for i in (n + 2)..self.y {
+                        self.data[n * self.y + i] = 0.0;
+                    }
+                    // get Q
+                    for k in 0..self.y {
+                        n2 = 0.0;
+                        for i in (n + 1)..self.y {
+                            n2 += ret_q_data[i * self.y + k] * tmp_y[i];
+                        }
+                        for i in (n + 1)..self.y {
+                            ret_q_data[i * self.y + k] -= 2.0 * n2 * tmp_y[i];
+                        }
                     }
                 }
 
@@ -1694,6 +1764,9 @@ impl RMatrix {
         let mut s: f64;
         let n: usize = self.x.min(self.y);
         for i in 0..(n - 1) {
+            if self.data[i * self.y + i + 1] == 0.0 {
+                continue;
+            }
             // Givens
             x = self.data[i * self.y + i];
             y = self.data[i * self.y + i + 1];
@@ -1726,6 +1799,9 @@ impl RMatrix {
         let mut s: f64;
         let n: usize = self.x.min(self.y);
         for i in 0..(n - 1) {
+            if self.data[(i + 1) * self.y + i] == 0.0 {
+                continue;
+            }
             // Givens
             x = self.data[i * self.y + i];
             y = self.data[(i + 1) * self.y + i];
@@ -1780,6 +1856,9 @@ impl RMatrix {
             for i in (n + 1)..self.x {
                 n2 += tmp[i] * tmp[i];
             }
+            if n2 == tmp[n + 1] * tmp[n + 1] {
+                continue;
+            }
             if tmp[n + 1] > 0.0 {
                 tmp[n + 1] += n2.sqrt();
                 n2 = (2.0 * n2.sqrt() * tmp[n + 1]).sqrt();
@@ -1804,7 +1883,7 @@ impl RMatrix {
                 self.data[i * self.y + n] = 0.0;
             }
             // apply to A
-            for k in n..self.x {
+            for k in 0..self.x {
                 n2 = 0.0;
                 for i in (n + 1)..self.y {
                     n2 += self.data[k * self.y + i] * tmp[i];
@@ -1842,7 +1921,7 @@ impl RMatrix {
                     self.data[i * self.y + k] = -x * s + y * c;
                 }
                 self.data[i * self.y + n] = 0.0;
-                for k in n..self.x {
+                for k in 0..self.x {
                     x = self.data[k * self.y + n + 1];
                     y = self.data[k * self.y + i];
                     self.data[k * self.y + n + 1] =  x * c + y * s;
@@ -1871,6 +1950,9 @@ impl RMatrix {
             n2 = 0.0;
             for i in (n + 1)..self.x {
                 n2 += tmp[i] * tmp[i];
+            }
+            if n2 == tmp[n + 1] * tmp[n + 1] {
+                continue;
             }
             if tmp[n + 1] > 0.0 {
                 tmp[n + 1] += n2.sqrt();
@@ -2002,28 +2084,30 @@ impl RMatrix {
                 for i in n..self.y {
                     n2 += tmp_y[i] * tmp_y[i];
                 }
-                if tmp_y[n] > 0.0 {
-                    tmp_y[n] += n2.sqrt();
-                    n2 = (2.0 * n2.sqrt() * tmp_y[n]).sqrt();
-                } else {
-                    tmp_y[n] -= n2.sqrt();
-                    n2 = (-2.0 * n2.sqrt() * tmp_y[n]).sqrt();
-                }
-                for i in n..self.y {
-                    tmp_y[i] /= n2;
-                }
-                // apply to A
-                for k in n..self.x {
-                    n2 = 0.0;
-                    for i in n..self.y {
-                        n2 += self.data[k * self.y + i] * tmp_y[i];
+                if n2 != tmp_y[n] * tmp_y[n] {
+                    if tmp_y[n] > 0.0 {
+                        tmp_y[n] += n2.sqrt();
+                        n2 = (2.0 * n2.sqrt() * tmp_y[n]).sqrt();
+                    } else {
+                        tmp_y[n] -= n2.sqrt();
+                        n2 = (-2.0 * n2.sqrt() * tmp_y[n]).sqrt();
                     }
                     for i in n..self.y {
-                        self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                        tmp_y[i] /= n2;
                     }
-                }
-                for i in (n + 1)..self.y {
-                    self.data[n * self.y + i] = 0.0;
+                    // apply to A
+                    for k in n..self.x {
+                        n2 = 0.0;
+                        for i in n..self.y {
+                            n2 += self.data[k * self.y + i] * tmp_y[i];
+                        }
+                        for i in n..self.y {
+                            self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                        }
+                    }
+                    for i in (n + 1)..self.y {
+                        self.data[n * self.y + i] = 0.0;
+                    }
                 }
 
                 if (n + 1) == self.x {
@@ -2041,28 +2125,30 @@ impl RMatrix {
                 for i in (n + 1)..self.x {
                     n2 += tmp_x[i] * tmp_x[i];
                 }
-                if tmp_x[n + 1] > 0.0 {
-                    tmp_x[n + 1] += n2.sqrt();
-                    n2 = (2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
-                } else {
-                    tmp_x[n + 1] -= n2.sqrt();
-                    n2 = (-2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
-                }
-                for i in (n + 1)..self.x {
-                    tmp_x[i] /= n2;
-                }
-                // apply to A
-                for k in n..self.y {
-                    n2 = 0.0;
-                    for i in (n + 1)..self.x {
-                        n2 += self.data[i * self.y + k] * tmp_x[i];
+                if n2 != tmp_x[n + 1] * tmp_x[n + 1] {
+                    if tmp_x[n + 1] > 0.0 {
+                        tmp_x[n + 1] += n2.sqrt();
+                        n2 = (2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
+                    } else {
+                        tmp_x[n + 1] -= n2.sqrt();
+                        n2 = (-2.0 * n2.sqrt() * tmp_x[n + 1]).sqrt();
                     }
                     for i in (n + 1)..self.x {
-                        self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                        tmp_x[i] /= n2;
                     }
-                }
-                for i in (n + 2)..self.x {
-                    self.data[i * self.y + n] = 0.0;
+                    // apply to A
+                    for k in n..self.y {
+                        n2 = 0.0;
+                        for i in (n + 1)..self.x {
+                            n2 += self.data[i * self.y + k] * tmp_x[i];
+                        }
+                        for i in (n + 1)..self.x {
+                            self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                        }
+                    }
+                    for i in (n + 2)..self.x {
+                        self.data[i * self.y + n] = 0.0;
+                    }
                 }
 
                 n += 1;
@@ -2080,28 +2166,30 @@ impl RMatrix {
                 for i in n..self.x {
                     n2 += tmp_x[i] * tmp_x[i];
                 }
-                if tmp_x[n] > 0.0 {
-                    tmp_x[n] += n2.sqrt();
-                    n2 = (2.0 * n2.sqrt() * tmp_x[n]).sqrt();
-                } else {
-                    tmp_x[n] -= n2.sqrt();
-                    n2 = (-2.0 * n2.sqrt() * tmp_x[n]).sqrt();
-                }
-                for i in n..self.x {
-                    tmp_x[i] /= n2;
-                }
-                // apply to A
-                for k in n..self.y {
-                    n2 = 0.0;
-                    for i in n..self.x {
-                        n2 += self.data[i * self.y + k] * tmp_x[i];
+                if n2 != tmp_x[n] * tmp_x[n] {
+                    if tmp_x[n] > 0.0 {
+                        tmp_x[n] += n2.sqrt();
+                        n2 = (2.0 * n2.sqrt() * tmp_x[n]).sqrt();
+                    } else {
+                        tmp_x[n] -= n2.sqrt();
+                        n2 = (-2.0 * n2.sqrt() * tmp_x[n]).sqrt();
                     }
                     for i in n..self.x {
-                        self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                        tmp_x[i] /= n2;
                     }
-                }
-                for i in (n + 1)..self.x {
-                    self.data[i * self.y + n] = 0.0;
+                    // apply to A
+                    for k in n..self.y {
+                        n2 = 0.0;
+                        for i in n..self.x {
+                            n2 += self.data[i * self.y + k] * tmp_x[i];
+                        }
+                        for i in n..self.x {
+                            self.data[i * self.y + k] -= 2.0 * n2 * tmp_x[i];
+                        }
+                    }
+                    for i in (n + 1)..self.x {
+                        self.data[i * self.y + n] = 0.0;
+                    }
                 }
 
                 if (n + 1) == self.y {
@@ -2119,28 +2207,30 @@ impl RMatrix {
                 for i in (n + 1)..self.y {
                     n2 += tmp_y[i] * tmp_y[i];
                 }
-                if tmp_y[n + 1] > 0.0 {
-                    tmp_y[n + 1] += n2.sqrt();
-                    n2 = (2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
-                } else {
-                    tmp_y[n + 1] -= n2.sqrt();
-                    n2 = (-2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
-                }
-                for i in (n + 1)..self.y {
-                    tmp_y[i] /= n2;
-                }
-                // apply to A
-                for k in n..self.x {
-                    n2 = 0.0;
-                    for i in (n + 1)..self.y {
-                        n2 += self.data[k * self.y + i] * tmp_y[i];
+                if n2 != tmp_y[n + 1] * tmp_y[n + 1] {
+                    if tmp_y[n + 1] > 0.0 {
+                        tmp_y[n + 1] += n2.sqrt();
+                        n2 = (2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
+                    } else {
+                        tmp_y[n + 1] -= n2.sqrt();
+                        n2 = (-2.0 * n2.sqrt() * tmp_y[n + 1]).sqrt();
                     }
                     for i in (n + 1)..self.y {
-                        self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                        tmp_y[i] /= n2;
                     }
-                }
-                for i in (n + 2)..self.y {
-                    self.data[n * self.y + i] = 0.0;
+                    // apply to A
+                    for k in n..self.x {
+                        n2 = 0.0;
+                        for i in (n + 1)..self.y {
+                            n2 += self.data[k * self.y + i] * tmp_y[i];
+                        }
+                        for i in (n + 1)..self.y {
+                            self.data[k * self.y + i] -= 2.0 * n2 * tmp_y[i];
+                        }
+                    }
+                    for i in (n + 2)..self.y {
+                        self.data[n * self.y + i] = 0.0;
+                    }
                 }
 
                 n += 1;
@@ -2244,6 +2334,9 @@ impl RMatrix {
         let mut s: f64;
         let n: usize = self.x.min(self.y);
         for i in 0..(n - 1) {
+            if self.data[i * self.y + i + 1] == 0.0 {
+                continue;
+            }
             // Givens
             x = self.data[i * self.y + i];
             y = self.data[i * self.y + i + 1];
@@ -2269,6 +2362,9 @@ impl RMatrix {
         let mut s: f64;
         let n: usize = self.x.min(self.y);
         for i in 0..(n - 1) {
+            if self.data[(i + 1) * self.y + i] == 0.0 {
+                continue;
+            }
             // Givens
             x = self.data[i * self.y + i];
             y = self.data[(i + 1) * self.y + i];
@@ -2297,7 +2393,7 @@ impl RMatrix {
         }
     }
 
-    // SVD
+    // singular value decomposition(SVD)
     // in place
     // A = U ^ S ^ V
     pub fn isvd_qr(&mut self) -> (RMatrix, RMatrix) {
@@ -2306,7 +2402,7 @@ impl RMatrix {
         let mut n1: f64;
         let mut n2: f64;
         let mut delta: f64 = std::f64::MAX;
-        while delta > 0.001 {
+        while delta > 0.000000000000000000001 {
             self.ibpqr_givens(&mut u, &mut v);
             n1 = 0.0;
             n2 = self.data[0] * self.data[0];
@@ -2317,10 +2413,35 @@ impl RMatrix {
             }
             delta = (n1 / n2).sqrt();
         }
+        // clean up
+        for i in 1..n {
+            self.data[i * self.y + (i - 1)] = 0.0;
+            self.data[(i - 1) * self.y + i] = 0.0;
+        }
+        // caused by householder
+        if self.x < self.y {
+            for k in 0..self.x {
+                if self.data[k * self.y + k] < 0.0 {
+                    self.data[k * self.y + k] *= -1.0;
+                    for i in 0..self.x {
+                        u.data[i * self.x + k] *= -1.0;
+                    }
+                }
+            }
+        } else {
+            for k in 0..self.y {
+                if self.data[k * self.y + k] < 0.0 {
+                    self.data[k * self.y + k] *= -1.0;
+                    for j in 0..self.y {
+                        v.data[k * self.y + j] *= -1.0;
+                    }
+                }
+            }
+        }
         (u, v)
     }
 
-    // SVD
+    // singular value decomposition(SVD)
     // in place
     // without U or V
     pub fn isv_qr(&mut self) {
@@ -2329,7 +2450,7 @@ impl RMatrix {
         let mut n1: f64;
         let mut n2: f64;
         let mut delta: f64 = std::f64::MAX;
-        while delta > 0.0000000000000000001 {
+        while delta > 0.000000000000000000001 {
             self.ibr_givens();
             n1 = 0.0;
             n2 = self.data[0] * self.data[0];
@@ -2339,6 +2460,17 @@ impl RMatrix {
                 n2 += self.data[i * self.y + i] * self.data[i * self.y + i];
             }
             delta = (n1 / n2).sqrt();
+        }
+        // clean up
+        for i in 1..n {
+            self.data[i * self.y + (i - 1)] = 0.0;
+            self.data[(i - 1) * self.y + i] = 0.0;
+        }
+        // caused by householder
+        for k in 0..self.x.min(self.y) {
+            if self.data[k * self.y + k] < 0.0 {
+                self.data[k * self.y + k] *= -1.0;
+            }
         }
     }
 }
