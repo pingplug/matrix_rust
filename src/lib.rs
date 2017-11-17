@@ -104,9 +104,12 @@ mod tests {
         let mut rand = RMatrix::gen_rand_sym(n);
         rand.isquare();
         let l = rand.cholesky();
-        assert!(feq(l.square().norm_2() / rand.norm_2(), 1.0));
-        let l = rand.pp_cholesky();
-        assert!(feq(l.square().norm_2() / rand.norm_2(), 1.0));
+        assert!(feq((&(l.square()) - &rand).norm_2() / rand.norm_2(), 0.0));
+
+        let mut rand = RMatrix::gen_rand_ubi(n);
+        rand.isquare();
+        let l = rand.cholesky_tri();
+        assert!(feq((&(l.square()) - &rand).norm_f() / rand.norm_f(), 0.0));
     }
 
     #[test]
@@ -124,6 +127,10 @@ mod tests {
         assert!(feq((&(&l ^ &u) - &(&(&p ^ &rand) ^ &!&p)).norm_2() / (&(&p ^ &rand) ^ &!&p).norm_2(), 0.0));
         let (p, q, l, u) = rand.pqlu();
         assert!(feq((&(&l ^ &u) - &(&(&p ^ &rand) ^ &q)).norm_2() / (&(&p ^ &rand) ^ &q).norm_2(), 0.0));
+
+        let rand = RMatrix::gen_rand_tri(n, n);
+        let (l, u) = rand.lu_tri();
+        assert!(feq((&(&l ^ &u) - &rand).norm_f() / rand.norm_f(), 0.0));
     }
 
     fn qr_test1(x: usize, y: usize, fx: f64, fy: f64) {

@@ -195,12 +195,27 @@ impl RMatrix {
         let min = m.min(n);
         for i in 0..(min - 1) {
             ret_data[i * n + (i + 1)] = rand::thread_rng().gen_range(0.0, 1.0);
-            ret_data[(i + 1) * n + i] = ret_data[i * n + (i + 1)];
+            ret_data[(i + 1) * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
             ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
         }
         ret_data[(min - 1) * (n + 1)] = rand::thread_rng().gen_range(0.0, 1.0);
         RMatrix {
             x: m,
+            y: n,
+            data: ret_data
+        }
+    }
+
+    // generate an up bidiagonal matrix, all elements are random number between 0 and 1
+    pub fn gen_rand_ubi(n: usize) -> RMatrix {
+        let mut ret_data: Vec<f64> = vec![0.0; n * n];
+        for i in 0..(n - 1) {
+            ret_data[i * n + (i + 1)] = rand::thread_rng().gen_range(0.0, 1.0);
+            ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
+        }
+        ret_data[n * n - 1] = rand::thread_rng().gen_range(0.0, 1.0);
+        RMatrix {
+            x: n,
             y: n,
             data: ret_data
         }
@@ -459,33 +474,6 @@ impl RMatrix {
     pub fn cholesky(&self) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.cholesky(): square matrix only");
         let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for j in 0..self.y {
-            ret_data[j * self.y + j] = self.data[j * self.y + j];
-            for k in 0..j {
-                ret_data[j * self.y + j] -= ret_data[j * self.y + k] * ret_data[j * self.y + k];
-            }
-            ret_data[j * self.y + j] = ret_data[j * self.y + j].sqrt();
-            for i in (j + 1)..self.x {
-                ret_data[i * self.y + j] = self.data[i * self.y + j];
-                for k in 0..j {
-                    ret_data[i * self.y + j] -= ret_data[i * self.y + k] * ret_data[j * self.y + k];
-                }
-                ret_data[i * self.y + j] /= ret_data[j * self.y + j];
-            }
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-
-    // Cholesky decomposition
-    // A must be symmetric, positive-define
-    // A = L ^ !L
-    pub fn pp_cholesky(&self) -> RMatrix {
-        assert_eq!(self.x, self.y, "RMatrix.pp_cholesky(): square matrix only");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
         for i in 0..self.x {
             for j in 0..(i + 1) {
                 ret_data[i * self.y + j] = self.data[i * self.y + j];
@@ -499,6 +487,30 @@ impl RMatrix {
                 ret_data[i * self.y + j] /= ret_data[j * self.y + j];
                 ret_data[i * self.y + i] -= ret_data[i * self.y + j] * ret_data[i * self.y + j];
             }
+            ret_data[i * self.y + i] = ret_data[i * self.y + i].sqrt();
+        }
+        RMatrix {
+            x: self.x,
+            y: self.y,
+            data: ret_data
+        }
+    }
+
+    // Cholesky decomposition for tridiagonal matrix
+    // A must be symmetric, positive-define
+    // A = L ^ !L
+    pub fn cholesky_tri(&self) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.cholesky_tri(): square matrix only");
+        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
+        ret_data[0] = self.data[0];
+        for i in 1..self.x {
+            ret_data[i * self.y + i - 1] = self.data[i * self.y + i - 1];
+            ret_data[i * self.y + i] = self.data[i * self.y + i];
+        }
+        ret_data[0] = self.data[0].sqrt();
+        for i in 1..self.x {
+            ret_data[i * self.y + i - 1] /= ret_data[(i - 1) * (self.y + 1)];
+            ret_data[i * self.y + i] -= ret_data[i * self.y + i - 1] * ret_data[i * self.y + i - 1];
             ret_data[i * self.y + i] = ret_data[i * self.y + i].sqrt();
         }
         RMatrix {
@@ -524,6 +536,31 @@ impl RMatrix {
         }
         for i in 0..self.x {
             ret_l_data[i * self.y + i] = 1.0;
+        }
+        (RMatrix {
+            x: self.x,
+            y: self.y,
+            data: ret_l_data
+        },
+        RMatrix {
+            x: self.x,
+            y: self.y,
+            data: ret_u_data
+        })
+    }
+
+    // LU decomposition for tridiagonal matrix
+    // A = L ^ U
+    pub fn lu_tri(&self) -> (RMatrix, RMatrix) {
+        assert_eq!(self.x, self.y, "RMatrix.lu_tri(): square matrix only");
+        let mut ret_l_data: Vec<f64> = vec![0.0; self.x * self.y];
+        let mut ret_u_data: Vec<f64> = self.data.clone();
+        ret_l_data[0] = 1.0;
+        for j in 1..self.y {
+            ret_l_data[j * self.y + j - 1] = ret_u_data[j * self.y + j - 1] / ret_u_data[(j - 1) * (self.y + 1)];
+            ret_l_data[j * self.y + j] = 1.0;
+            ret_u_data[j * self.y + j - 1] = 0.0;
+            ret_u_data[j * self.y + j] -= ret_u_data[(j - 1) * self.y + j] * ret_l_data[j * self.y + j - 1];
         }
         (RMatrix {
             x: self.x,
