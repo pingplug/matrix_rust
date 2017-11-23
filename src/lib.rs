@@ -101,15 +101,13 @@ mod tests {
     fn cholesky() {
         use r_matrix::RMatrix;
         let n: usize = 100;
-        let mut rand = RMatrix::gen_rand_sym(n);
-        rand.isquare();
+        let rand = &RMatrix::gen_rand_sym(n).square();
         let l = rand.cholesky();
-        assert!(feq((l.square() - &rand).norm_2() / rand.norm_2(), 0.0));
+        assert!(feq((l.square() - rand).norm_2() / rand.norm_2(), 0.0));
 
-        let mut rand = RMatrix::gen_rand_ubi(n);
-        rand.isquare();
+        let rand = &RMatrix::gen_rand_ubi(n).square();
         let l = rand.cholesky_tri();
-        assert!(feq((l.square() - &rand).norm_f() / rand.norm_f(), 0.0));
+        assert!(feq((l.square() - rand).norm_f() / rand.norm_f(), 0.0));
     }
 
     #[test]

@@ -2532,39 +2532,155 @@ impl Clone for RMatrix {
 }
 
 // operators
+// helper macro
+// op &A -> op A
+macro_rules! impl_op_1_i {
+    (impl $imp:ident, $method:ident for $it:ty, $ot:ty) => {
+        impl $imp for $it {
+            type Output = $ot;
+
+            #[inline]
+            fn $method(self) -> $ot {
+                $imp::$method(&self)
+            }
+        }
+    }
+}
+
+// op &A -> op &mut A
+macro_rules! impl_op_1_m {
+    (impl $imp:ident, $method:ident for $it:ty, $ot:ty) => {
+        impl_op_1_i!(impl $imp, $method for $it, $ot);
+
+        impl<'a> $imp for &'a mut $it {
+            type Output = $ot;
+
+            #[inline]
+            fn $method(self) -> $ot {
+                $imp::$method(&*self)
+            }
+        }
+    }
+}
+
+// &A op &B -> &A op B, A op &B, A op B
+macro_rules! impl_op_2_ii {
+    (impl $imp:ident, $method:ident for $lt:ty, $rt:ty, $ot:ty) => {
+        impl<'a> $imp<$rt> for &'a $lt {
+            type Output = $ot;
+
+            #[inline]
+            fn $method(self, rhs: $rt) -> $ot {
+                $imp::$method(self, &rhs)
+            }
+        }
+
+        impl<'b> $imp<&'b $rt> for $lt {
+            type Output = $ot;
+
+            #[inline]
+            fn $method(self, rhs: &'b $rt) -> $ot {
+                $imp::$method(&self, rhs)
+            }
+        }
+
+        impl $imp<$rt> for $lt {
+            type Output = $ot;
+
+            #[inline]
+            fn $method(self, rhs: $rt) -> $ot {
+                $imp::$method(&self, &rhs)
+            }
+        }
+    }
+}
+
+// &A op &B -> &mut A op B, &mut A op &B
+macro_rules! impl_op_2_mi {
+    (impl $imp:ident, $method:ident for $lt:ty, $rt:ty, $ot:ty) => {
+        impl_op_2_ii!(impl $imp, $method for $lt, $rt, $ot);
+
+        impl_op_2_mi!(impl $imp, $method for mut $lt, $rt, $ot);
+    };
+    (impl $imp:ident, $method:ident for mut $lt:ty, $rt:ty, $ot:ty) => {
+        impl<'a> $imp<$rt> for &'a mut $lt {
+            type Output = $ot;
+
+            #[inline]
+            fn $method(self, rhs: $rt) -> $ot {
+                $imp::$method(&*self, &rhs)
+            }
+        }
+
+        impl<'a, 'b> $imp<&'b $rt> for &'a mut $lt {
+            type Output = $ot;
+
+            #[inline]
+            fn $method(self, rhs: &'b $rt) -> $ot {
+                $imp::$method(&*self, rhs)
+            }
+        }
+    }
+}
+
+// &A op &B -> A op &mut B, &A op &mut B
+macro_rules! impl_op_2_im {
+    (impl $imp:ident, $method:ident for $lt:ty, $rt:ty, $ot:ty) => {
+        impl_op_2_ii!(impl $imp, $method for $lt, $rt, $ot);
+
+        impl_op_2_im!(impl $imp, $method for $lt, mut $rt, $ot);
+    };
+    (impl $imp:ident, $method:ident for $lt:ty, mut $rt:ty, $ot:ty) => {
+        impl<'b> $imp<&'b mut $rt> for $lt {
+            type Output = $ot;
+
+            #[inline]
+            fn $method(self, rhs: &'b mut $rt) -> $ot {
+                $imp::$method(&self, &*rhs)
+            }
+        }
+
+        impl<'a, 'b> $imp<&'b mut $rt> for &'a $lt {
+            type Output = $ot;
+
+            #[inline]
+            fn $method(self, rhs: &'b mut $rt) -> $ot {
+                $imp::$method(self, &*rhs)
+            }
+        }
+    }
+}
+
+// &A op &B -> &mut A op &mut B
+macro_rules! impl_op_2_mm {
+    (impl $imp:ident, $method:ident for $lt:ty, $rt:ty, $ot:ty) => {
+        impl_op_2_ii!(impl $imp, $method for $lt, $rt, $ot);
+
+        impl_op_2_mi!(impl $imp, $method for mut $lt, $rt, $ot);
+
+        impl_op_2_im!(impl $imp, $method for $lt, mut $rt, $ot);
+
+        impl_op_2_mm!(impl $imp, $method for mut $lt, mut $rt, $ot);
+    };
+    (impl $imp:ident, $method:ident for mut $lt:ty, mut $rt:ty, $ot:ty) => {
+        impl<'a, 'b> $imp<&'b mut $rt> for &'a mut $lt {
+            type Output = $ot;
+
+            #[inline]
+            fn $method(self, rhs: &'b mut $rt) -> $ot {
+                $imp::$method(&*self, &*rhs)
+            }
+        }
+    }
+}
+
 // addition
-// &A + &B
+// A + B
 // out of place
 impl<'a, 'b> Add<&'b RMatrix> for &'a RMatrix {
     type Output = RMatrix;
 
-    fn add(self, mat: &RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self + mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] + mat
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.add(&RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.add(&RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] + mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// &A + B
-// out of place
-impl<'a> Add<RMatrix> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn add(self, mat: RMatrix) -> RMatrix {
+    fn add(self, mat: &'b RMatrix) -> RMatrix {
         if mat.x == 1 && mat.y == 1 {
             return self + mat.data[0]
         }
@@ -2585,82 +2701,14 @@ impl<'a> Add<RMatrix> for &'a RMatrix {
     }
 }
 
-// A + &B
-// out of place
-impl<'b> Add<&'b RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn add(self, mat: &RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self + mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] + mat
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.add(&RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.add(&RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] + mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// A + B
-// out of place
-impl Add<RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn add(self, mat: RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self + mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] + mat
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.add(RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.add(RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] + mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// &A + b
-// out of place
-impl<'a> Add<f64> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn add(self, num: f64) -> RMatrix {
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] + num;
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
+impl_op_2_mm!{impl Add, add for RMatrix, RMatrix, RMatrix}
 
 // A + b
 // out of place
-impl Add<f64> for RMatrix {
+impl<'a, 'b> Add<&'b f64> for &'a RMatrix {
     type Output = RMatrix;
 
-    fn add(self, num: f64) -> RMatrix {
+    fn add(self, num: &'b f64) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] + num;
@@ -2673,30 +2721,14 @@ impl Add<f64> for RMatrix {
     }
 }
 
-// a + &B
-// out of place
-impl<'a> Add<&'a RMatrix> for f64 {
-    type Output = RMatrix;
-
-    fn add(self, mat: &'a RMatrix) -> RMatrix {
-        let mut ret_data: Vec<f64> = vec![0.0; mat.x * mat.y];
-        for i in 0..(mat.x * mat.y) {
-            ret_data[i] = self + mat.data[i];
-        }
-        RMatrix {
-            x: mat.x,
-            y: mat.y,
-            data: ret_data
-        }
-    }
-}
+impl_op_2_mi!{impl Add, add for RMatrix, f64, RMatrix}
 
 // a + B
 // out of place
-impl Add<RMatrix> for f64 {
+impl<'a, 'b> Add<&'b RMatrix> for &'a f64 {
     type Output = RMatrix;
 
-    fn add(self, mat: RMatrix) -> RMatrix {
+    fn add(self, mat: &'b RMatrix) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; mat.x * mat.y];
         for i in 0..(mat.x * mat.y) {
             ret_data[i] = self + mat.data[i];
@@ -2708,6 +2740,8 @@ impl Add<RMatrix> for f64 {
         }
     }
 }
+
+impl_op_2_im!{impl Add, add for f64, RMatrix, RMatrix}
 
 // A += &B
 // in place
@@ -2752,7 +2786,7 @@ impl AddAssign<f64> for RMatrix {
 }
 
 // subtraction
-// &A - &B
+// A - B
 // out of place
 impl<'a, 'b> Sub<&'b RMatrix> for &'a RMatrix {
     type Output = RMatrix;
@@ -2764,32 +2798,6 @@ impl<'a, 'b> Sub<&'b RMatrix> for &'a RMatrix {
         if self.x == 1 && self.y == 1 {
             return self.data[0] - mat
         }
-        assert_eq!(self.x, mat.x, "RMatrix.sub(&RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.sub(&RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] - mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// &A - B
-// out of place
-impl<'a> Sub<RMatrix> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn sub(self, mat: RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self - mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] - mat
-        }
         assert_eq!(self.x, mat.x, "RMatrix.sub(RMatrix): matrix size mismatch");
         assert_eq!(self.y, mat.y, "RMatrix.sub(RMatrix): matrix size mismatch");
         let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
@@ -2804,82 +2812,14 @@ impl<'a> Sub<RMatrix> for &'a RMatrix {
     }
 }
 
-// A - &B
-// out of place
-impl<'b> Sub<&'b RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn sub(self, mat: &RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self - mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] - mat
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.sub(&RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.sub(&RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] - mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// A - B
-// out of place
-impl Sub<RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn sub(self, mat: RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self - mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] - mat
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.sub(RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.sub(RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] - mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// &A - b
-// out of place
-impl<'a> Sub<f64> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn sub(self, num: f64) -> RMatrix {
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] - num;
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
+impl_op_2_mm!{impl Sub, sub for RMatrix, RMatrix, RMatrix}
 
 // A - b
 // out of place
-impl Sub<f64> for RMatrix {
+impl<'a, 'b> Sub<&'b f64> for &'a RMatrix {
     type Output = RMatrix;
 
-    fn sub(self, num: f64) -> RMatrix {
+    fn sub(self, num: &'b f64) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] - num;
@@ -2892,30 +2832,14 @@ impl Sub<f64> for RMatrix {
     }
 }
 
-// a - &B
-// out of place
-impl<'a> Sub<&'a RMatrix> for f64 {
-    type Output = RMatrix;
-
-    fn sub(self, mat: &'a RMatrix) -> RMatrix {
-        let mut ret_data: Vec<f64> = vec![0.0; mat.x * mat.y];
-        for i in 0..(mat.x * mat.y) {
-            ret_data[i] = self - mat.data[i];
-        }
-        RMatrix {
-            x: mat.x,
-            y: mat.y,
-            data: ret_data
-        }
-    }
-}
+impl_op_2_mi!{impl Sub, sub for RMatrix, f64, RMatrix}
 
 // a - B
 // out of place
-impl Sub<RMatrix> for f64 {
+impl<'a, 'b> Sub<&'b RMatrix> for &'a f64 {
     type Output = RMatrix;
 
-    fn sub(self, mat: RMatrix) -> RMatrix {
+    fn sub(self, mat: &'b RMatrix) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; mat.x * mat.y];
         for i in 0..(mat.x * mat.y) {
             ret_data[i] = self - mat.data[i];
@@ -2927,6 +2851,8 @@ impl Sub<RMatrix> for f64 {
         }
     }
 }
+
+impl_op_2_im!{impl Sub, sub for f64, RMatrix, RMatrix}
 
 // A -= &B
 // in place
@@ -2971,7 +2897,7 @@ impl SubAssign<f64> for RMatrix {
 }
 
 // multiplication
-// &A * &B
+// A * B
 // out of place
 impl<'a, 'b> Mul<&'b RMatrix> for &'a RMatrix {
     type Output = RMatrix;
@@ -2983,32 +2909,6 @@ impl<'a, 'b> Mul<&'b RMatrix> for &'a RMatrix {
         if self.x == 1 && self.y == 1 {
             return self.data[0] * mat
         }
-        assert_eq!(self.x, mat.x, "RMatrix.mul(&RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.mul(&RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] * mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// &A * B
-// out of place
-impl<'a> Mul<RMatrix> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn mul(self, mat: RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self * mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] * mat
-        }
         assert_eq!(self.x, mat.x, "RMatrix.mul(RMatrix): matrix size mismatch");
         assert_eq!(self.y, mat.y, "RMatrix.mul(RMatrix): matrix size mismatch");
         let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
@@ -3023,82 +2923,14 @@ impl<'a> Mul<RMatrix> for &'a RMatrix {
     }
 }
 
-// A * &B
-// out of place
-impl<'b> Mul<&'b RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn mul(self, mat: &RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self * mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] * mat
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.mul(&RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.mul(&RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] * mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// A * B
-// out of place
-impl Mul<RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn mul(self, mat: RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self * mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] * mat
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.mul(RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.mul(RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] * mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// &A * b
-// out of place
-impl<'a> Mul<f64> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn mul(self, num: f64) -> RMatrix {
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] * num;
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
+impl_op_2_mm!{impl Mul, mul for RMatrix, RMatrix, RMatrix}
 
 // A * b
 // out of place
-impl Mul<f64> for RMatrix {
+impl<'a, 'b> Mul<&'b f64> for &'a RMatrix {
     type Output = RMatrix;
 
-    fn mul(self, num: f64) -> RMatrix {
+    fn mul(self, num: &'b f64) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] * num;
@@ -3111,30 +2943,14 @@ impl Mul<f64> for RMatrix {
     }
 }
 
-// a * &B
-// out of place
-impl<'a> Mul<&'a RMatrix> for f64 {
-    type Output = RMatrix;
-
-    fn mul(self, mat: &'a RMatrix) -> RMatrix {
-        let mut ret_data: Vec<f64> = vec![0.0; mat.x * mat.y];
-        for i in 0..(mat.x * mat.y) {
-            ret_data[i] = self * mat.data[i];
-        }
-        RMatrix {
-            x: mat.x,
-            y: mat.y,
-            data: ret_data
-        }
-    }
-}
+impl_op_2_mi!{impl Mul, mul for RMatrix, f64, RMatrix}
 
 // a * B
 // out of place
-impl Mul<RMatrix> for f64 {
+impl<'a, 'b> Mul<&'b RMatrix> for &'a f64 {
     type Output = RMatrix;
 
-    fn mul(self, mat: RMatrix) -> RMatrix {
+    fn mul(self, mat: &'b RMatrix) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; mat.x * mat.y];
         for i in 0..(mat.x * mat.y) {
             ret_data[i] = self * mat.data[i];
@@ -3146,6 +2962,8 @@ impl Mul<RMatrix> for f64 {
         }
     }
 }
+
+impl_op_2_im!{impl Mul, mul for f64, RMatrix, RMatrix}
 
 // A *= &B
 // in place
@@ -3190,7 +3008,7 @@ impl MulAssign<f64> for RMatrix {
 }
 
 // division
-// &A / &B
+// A / B
 // out of place
 impl<'a, 'b> Div<&'b RMatrix> for &'a RMatrix {
     type Output = RMatrix;
@@ -3202,32 +3020,6 @@ impl<'a, 'b> Div<&'b RMatrix> for &'a RMatrix {
         if self.x == 1 && self.y == 1 {
             return self.data[0] / mat
         }
-        assert_eq!(self.x, mat.x, "RMatrix.div(&RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.div(&RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] / mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// &A / B
-// out of place
-impl<'a> Div<RMatrix> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn div(self, mat: RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self / mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] / mat
-        }
         assert_eq!(self.x, mat.x, "RMatrix.div(RMatrix): matrix size mismatch");
         assert_eq!(self.y, mat.y, "RMatrix.div(RMatrix): matrix size mismatch");
         let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
@@ -3242,82 +3034,14 @@ impl<'a> Div<RMatrix> for &'a RMatrix {
     }
 }
 
-// A / &B
-// out of place
-impl<'b> Div<&'b RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn div(self, mat: &RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self / mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] / mat
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.div(&RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.div(&RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] / mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// A / B
-// out of place
-impl Div<RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn div(self, mat: RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self / mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] / mat
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.div(RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.div(RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] / mat.data[i];
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// &A / b
-// out of place
-impl<'a> Div<f64> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn div(self, num: f64) -> RMatrix {
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for i in 0..(self.x * self.y) {
-            ret_data[i] = self.data[i] / num;
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
+impl_op_2_mm!{impl Div, div for RMatrix, RMatrix, RMatrix}
 
 // A / b
 // out of place
-impl Div<f64> for RMatrix {
+impl<'a, 'b> Div<&'b f64> for &'a RMatrix {
     type Output = RMatrix;
 
-    fn div(self, num: f64) -> RMatrix {
+    fn div(self, num: &'b f64) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] / num;
@@ -3330,30 +3054,14 @@ impl Div<f64> for RMatrix {
     }
 }
 
-// a / &B
-// out of place
-impl<'a> Div<&'a RMatrix> for f64 {
-    type Output = RMatrix;
-
-    fn div(self, mat: &'a RMatrix) -> RMatrix {
-        let mut ret_data: Vec<f64> = vec![0.0; mat.x * mat.y];
-        for i in 0..(mat.x * mat.y) {
-            ret_data[i] = self / mat.data[i];
-        }
-        RMatrix {
-            x: mat.x,
-            y: mat.y,
-            data: ret_data
-        }
-    }
-}
+impl_op_2_mi!{impl Div, div for RMatrix, f64, RMatrix}
 
 // a / B
 // out of place
-impl Div<RMatrix> for f64 {
+impl<'a, 'b> Div<&'b RMatrix> for &'a f64 {
     type Output = RMatrix;
 
-    fn div(self, mat: RMatrix) -> RMatrix {
+    fn div(self, mat: &'b RMatrix) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; mat.x * mat.y];
         for i in 0..(mat.x * mat.y) {
             ret_data[i] = self / mat.data[i];
@@ -3365,6 +3073,8 @@ impl Div<RMatrix> for f64 {
         }
     }
 }
+
+impl_op_2_im!{impl Div, div for f64, RMatrix, RMatrix}
 
 // A /= &B
 // in place
@@ -3409,7 +3119,7 @@ impl DivAssign<f64> for RMatrix {
 }
 
 // matrix multiplication
-// &A ^ &B
+// A ^ B
 // out of place matrix multiplication
 impl<'a, 'b> BitXor<&'b RMatrix> for &'a RMatrix {
     type Output = RMatrix;
@@ -3421,35 +3131,6 @@ impl<'a, 'b> BitXor<&'b RMatrix> for &'a RMatrix {
         if self.x == 1 && self.y == 1 {
             return self.data[0] * mat
         }
-        assert_eq!(self.y, mat.x, "RMatrix.bitxor(&RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * mat.y];
-        for i in 0..self.x {
-            for k in 0..self.y {
-                for j in 0..mat.y {
-                    ret_data[i * mat.y + j] += self.data[i * self.y + k] * mat.data[k * mat.y + j];
-                }
-            }
-        }
-        RMatrix {
-            x: self.x,
-            y: mat.y,
-            data: ret_data
-        }
-    }
-}
-
-// &A ^ B
-// out of place matrix multiplication
-impl<'a> BitXor<RMatrix> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn bitxor(self, mat: RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self * mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] * mat
-        }
         assert_eq!(self.y, mat.x, "RMatrix.bitxor(RMatrix): matrix size mismatch");
         let mut ret_data: Vec<f64> = vec![0.0; self.x * mat.y];
         for i in 0..self.x {
@@ -3467,63 +3148,7 @@ impl<'a> BitXor<RMatrix> for &'a RMatrix {
     }
 }
 
-// A ^ &B
-// out of place matrix multiplication
-impl<'b> BitXor<&'b RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn bitxor(self, mat: &RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self * mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] * mat
-        }
-        assert_eq!(self.y, mat.x, "RMatrix.bitxor(&RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * mat.y];
-        for i in 0..self.x {
-            for k in 0..self.y {
-                for j in 0..mat.y {
-                    ret_data[i * mat.y + j] += self.data[i * self.y + k] * mat.data[k * mat.y + j];
-                }
-            }
-        }
-        RMatrix {
-            x: self.x,
-            y: mat.y,
-            data: ret_data
-        }
-    }
-}
-
-// A ^ B
-// out of place matrix multiplication
-impl BitXor<RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn bitxor(self, mat: RMatrix) -> RMatrix {
-        if mat.x == 1 && mat.y == 1 {
-            return self * mat.data[0]
-        }
-        if self.x == 1 && self.y == 1 {
-            return self.data[0] * mat
-        }
-        assert_eq!(self.y, mat.x, "RMatrix.bitxor(RMatrix): matrix size mismatch");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * mat.y];
-        for i in 0..self.x {
-            for k in 0..self.y {
-                for j in 0..mat.y {
-                    ret_data[i * mat.y + j] += self.data[i * self.y + k] * mat.data[k * mat.y + j];
-                }
-            }
-        }
-        RMatrix {
-            x: self.x,
-            y: mat.y,
-            data: ret_data
-        }
-    }
-}
+impl_op_2_mm!{impl BitXor, bitxor for RMatrix, RMatrix, RMatrix}
 
 // in place left matrix multiplication
 // A <<= &B
@@ -3656,29 +3281,7 @@ impl<'a> Not for &'a RMatrix {
     }
 }
 
-// !A
-// out of place
-impl Not for RMatrix {
-    type Output = RMatrix;
-
-    fn not(self) -> RMatrix {
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        if self.x == 1 || self.y == 1 {
-            ret_data.copy_from_slice(self.data.as_slice());
-        } else {
-            for i in 0..self.x {
-                for j in 0..self.y {
-                    ret_data[j * self.x + i] = self.data[i * self.y + j];
-                }
-            }
-        }
-        RMatrix {
-            x: self.y,
-            y: self.x,
-            data: ret_data
-        }
-    }
-}
+impl_op_1_i!{impl Not, not for RMatrix, RMatrix}
 
 // !&mut A
 // (partly) in place
@@ -3719,15 +3322,15 @@ impl<'a> Not for &'a mut RMatrix {
 
 // get parallel
 // cos<A | B, B> = 1
-// &A | &B
+// A | B
 // out of place
 // vector only
 impl<'a, 'b> BitOr<&'b RMatrix> for &'a RMatrix {
     type Output = RMatrix;
 
     fn bitor(self, mat: &RMatrix) -> RMatrix {
-        assert_eq!(mat.y, 1, "RMatrix.bitor(&RMatrix): vector only");
-        assert_eq!(self.x, mat.x, "RMatrix.bitor(&RMatrix): vector size mismatch");
+        assert_eq!(mat.y, 1, "RMatrix.bitor(RMatrix): vector only");
+        assert_eq!(self.x, mat.x, "RMatrix.bitor(RMatrix): vector size mismatch");
         let mut norm: f64 = 0.0;
         for i in 0..self.x {
             norm += mat.data[i] * mat.data[i];
@@ -3738,62 +3341,7 @@ impl<'a, 'b> BitOr<&'b RMatrix> for &'a RMatrix {
     }
 }
 
-// &A | B
-// out of place
-// vector only
-impl<'a> BitOr<RMatrix> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn bitor(self, mat: RMatrix) -> RMatrix {
-        assert_eq!(mat.y, 1, "RMatrix.bitor(RMatrix): vector only");
-        assert_eq!(self.x, mat.x, "RMatrix.bitor(RMatrix): vector size mismatch");
-        let mut norm: f64 = 0.0;
-        for i in 0..self.x {
-            norm += mat.data[i] * mat.data[i];
-        }
-        let mut length = !&mat ^ self;
-        length /= norm;
-        mat ^ length
-    }
-}
-
-// A | &B
-// out of place
-// vector only
-impl<'b> BitOr<&'b RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn bitor(self, mat: &RMatrix) -> RMatrix {
-        assert_eq!(mat.y, 1, "RMatrix.bitor(&RMatrix): vector only");
-        assert_eq!(self.x, mat.x, "RMatrix.bitor(&RMatrix): vector size mismatch");
-        let mut norm: f64 = 0.0;
-        for i in 0..self.x {
-            norm += mat.data[i] * mat.data[i];
-        }
-        let mut length = !mat ^ self;
-        length /= norm;
-        mat ^ length
-    }
-}
-
-// A | B
-// out of place
-// vector only
-impl BitOr<RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn bitor(self, mat: RMatrix) -> RMatrix {
-        assert_eq!(mat.y, 1, "RMatrix.bitor(RMatrix): vector only");
-        assert_eq!(self.x, mat.x, "RMatrix.bitor(RMatrix): vector size mismatch");
-        let mut norm: f64 = 0.0;
-        for i in 0..self.x {
-            norm += mat.data[i] * mat.data[i];
-        }
-        let mut length = !&mat ^ self;
-        length /= norm;
-        mat ^ length
-    }
-}
+impl_op_2_mm!{impl BitOr, bitor for RMatrix, RMatrix, RMatrix}
 
 // A |= &B
 // in place
@@ -3839,15 +3387,15 @@ impl BitOrAssign<RMatrix> for RMatrix {
 
 // get perpendicular
 // cos<A % B, B> = 0
-// &A % &B
+// A % B
 // out of place
 // vector only
 impl<'a, 'b> Rem<&'b RMatrix> for &'a RMatrix {
     type Output = RMatrix;
 
     fn rem(self, mat: &RMatrix) -> RMatrix {
-        assert_eq!(mat.y, 1, "RMatrix.rem(&RMatrix): vector only");
-        assert_eq!(self.x, mat.x, "RMatrix.rem(&RMatrix): vector size mismatch");
+        assert_eq!(mat.y, 1, "RMatrix.rem(RMatrix): vector only");
+        assert_eq!(self.x, mat.x, "RMatrix.rem(RMatrix): vector size mismatch");
         let mut norm: f64 = 0.0;
         for i in 0..self.x {
             norm += mat.data[i] * mat.data[i];
@@ -3868,92 +3416,7 @@ impl<'a, 'b> Rem<&'b RMatrix> for &'a RMatrix {
     }
 }
 
-// &A % B
-// out of place
-// vector only
-impl<'a> Rem<RMatrix> for &'a RMatrix {
-    type Output = RMatrix;
-
-    fn rem(self, mat: RMatrix) -> RMatrix {
-        assert_eq!(mat.y, 1, "RMatrix.rem(RMatrix): vector only");
-        assert_eq!(self.x, mat.x, "RMatrix.rem(RMatrix): vector size mismatch");
-        let mut norm: f64 = 0.0;
-        for i in 0..self.x {
-            norm += mat.data[i] * mat.data[i];
-        }
-        let mut length = !&mat ^ self;
-        length /= norm;
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for j in 0..self.y {
-            for i in 0..self.x {
-                ret_data[i * self.y + j] = self.data[i * self.y + j] - (mat.data[i] * length.data[j]);
-            }
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// A % &B
-// out of place
-// vector only
-impl<'b> Rem<&'b RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn rem(self, mat: &RMatrix) -> RMatrix {
-        assert_eq!(mat.y, 1, "RMatrix.rem(&RMatrix): vector only");
-        assert_eq!(self.x, mat.x, "RMatrix.rem(&RMatrix): vector size mismatch");
-        let mut norm: f64 = 0.0;
-        for i in 0..self.x {
-            norm += mat.data[i] * mat.data[i];
-        }
-        let mut length = !mat ^ &self;
-        length /= norm;
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for j in 0..self.y {
-            for i in 0..self.x {
-                ret_data[i * self.y + j] = self.data[i * self.y + j] - (mat.data[i] * length.data[j]);
-            }
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
-
-// A % B
-// out of place
-// vector only
-impl Rem<RMatrix> for RMatrix {
-    type Output = RMatrix;
-
-    fn rem(self, mat: RMatrix) -> RMatrix {
-        assert_eq!(mat.y, 1, "RMatrix.rem(RMatrix): vector only");
-        assert_eq!(self.x, mat.x, "RMatrix.rem(RMatrix): vector size mismatch");
-        let mut norm: f64 = 0.0;
-        for i in 0..self.x {
-            norm += mat.data[i] * mat.data[i];
-        }
-        let mut length = !&mat ^ &self;
-        length /= norm;
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        for j in 0..self.y {
-            for i in 0..self.x {
-                ret_data[i * self.y + j] = self.data[i * self.y + j] - (mat.data[i] * length.data[j]);
-            }
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
-    }
-}
+impl_op_2_mm!{impl Rem, rem for RMatrix, RMatrix, RMatrix}
 
 // A %= &B
 // in place
