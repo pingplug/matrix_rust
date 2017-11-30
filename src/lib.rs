@@ -2,18 +2,19 @@ mod r_matrix;
 
 #[cfg(test)]
 mod tests {
+    use r_matrix::RMatrix;
+
     fn feq(n1: f64, n2: f64) -> bool {
         let result: f64 = (n1 - n2).abs();
-        if result > 0.00000000000001 {
-            false
-        } else {
+        if result < 0.00000000000001 {
             true
+        } else {
+            false
         }
     }
 
     #[test]
     fn basic() {
-        use r_matrix::RMatrix;
         let diag = &RMatrix::gen_diag(4, 3, vec![1.0, 2.0, 3.0]);
         let eye = &RMatrix::gen_eye(4, 3);
         let ones = &RMatrix::gen_ones(3, 1);
@@ -99,7 +100,6 @@ mod tests {
 
     #[test]
     fn cholesky() {
-        use r_matrix::RMatrix;
         let n: usize = 100;
         let rand = &RMatrix::gen_rand_sym(n).square();
         let l = rand.cholesky();
@@ -112,7 +112,6 @@ mod tests {
 
     #[test]
     fn lu() {
-        use r_matrix::RMatrix;
         let n: usize = 100;
         let rand = &RMatrix::gen_rand(n, n);
         let (l, u) = rand.lu();
@@ -132,21 +131,6 @@ mod tests {
     }
 
     fn qr_test1(x: usize, y: usize, fx: f64, fy: f64) {
-        use r_matrix::RMatrix;
-        let rand = &RMatrix::gen_rand(x, y);
-
-        let (q, r) = rand.cqr_cgs();
-        // should fail if no fx
-        assert!(feq(((!&q).square() - RMatrix::gen_eye(y, y)).norm_f() / (fx * fy), 0.0));
-        assert!(feq(((q ^ r) - rand).norm_2() / rand.norm_2(), 0.0));
-
-        let (q, r) = rand.cqr_mgs();
-        assert!(feq(((!&q).square() - RMatrix::gen_eye(y, y)).norm_f() / fy, 0.0));
-        assert!(feq(((q ^ r) - rand).norm_2() / rand.norm_2(), 0.0));
-    }
-
-    fn qr_test2(x: usize, y: usize, fx: f64, fy: f64) {
-        use r_matrix::RMatrix;
         let rand = &RMatrix::gen_rand(x, y);
 
         let (q, r) = rand.qr_hh();
@@ -188,8 +172,22 @@ mod tests {
         assert!(feq((rand1 - r).norm_2() / r.norm_2(), 0.0));
     }
 
-    fn qr_test3(x: usize, _y: usize, fx: f64, _fy: f64) {
-        use r_matrix::RMatrix;
+    fn qr_test2(x: usize, y: usize, fx: f64, fy: f64) {
+        qr_test1(x, y, fx, fy);
+        let rand = &RMatrix::gen_rand(x, y);
+
+        let (q, r) = rand.cqr_cgs();
+        // should fail if no fx
+        assert!(feq(((!&q).square() - RMatrix::gen_eye(y, y)).norm_f() / (fx * fy), 0.0));
+        assert!(feq(((q ^ r) - rand).norm_2() / rand.norm_2(), 0.0));
+
+        let (q, r) = rand.cqr_mgs();
+        assert!(feq(((!&q).square() - RMatrix::gen_eye(y, y)).norm_f() / fy, 0.0));
+        assert!(feq(((q ^ r) - rand).norm_2() / rand.norm_2(), 0.0));
+    }
+
+    fn qr_test3(x: usize, y: usize, fx: f64, fy: f64) {
+        qr_test2(x, y, fx, fy);
         let rand = &RMatrix::gen_rand(x, x);
 
         let mut rand1 = rand.clone();
@@ -237,24 +235,20 @@ mod tests {
 
     #[test]
     fn qr_long() {
-        qr_test2(50, 200, 50.0, 200.0);
+        qr_test1(50, 200, 50.0, 200.0);
     }
 
     #[test]
     fn qr_square() {
-        qr_test1(100, 100, 100.0, 100.0);
-        qr_test2(100, 100, 100.0, 100.0);
         qr_test3(100, 100, 100.0, 100.0);
     }
 
     #[test]
     fn qr_tall() {
-        qr_test1(200, 50, 200.0, 50.0);
         qr_test2(200, 50, 200.0, 50.0);
     }
 
     fn svd_test(x: usize, y: usize, fx: f64, fy: f64) {
-        use r_matrix::RMatrix;
         let rand = &RMatrix::gen_rand(x, y);
 
         let mut rand1 = rand.clone();
@@ -285,4 +279,93 @@ mod tests {
         svd_test(200, 50, 200.0, 50.0);
     }
 
+    fn solve_tri_test1(rand: &RMatrix, b: &RMatrix, s: f64) {
+        let x = rand.solve_tri_lu(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+    }
+
+    fn solve_tri_test2(rand: &RMatrix, b: &RMatrix, s: f64) {
+        solve_tri_test1(rand, b, s);
+        let x = rand.solve_tri_chol(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+    }
+
+    fn solve_test1(rand: &RMatrix, b: &RMatrix, s: f64) {
+        let _x = rand.solve_gdnr(b);
+        //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let x = rand.solve_lu(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+    }
+
+    fn solve_test2(rand: &RMatrix, b: &RMatrix, s: f64) {
+        solve_test1(rand, b, s);
+        let _x = rand.solve_lanczos(b);
+        //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let _x = rand.solve_minres(b);
+        //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+    }
+
+    fn solve_test3(rand: &RMatrix, b: &RMatrix, s: f64) {
+        solve_test2(rand, b, s);
+        let x = rand.solve_chol(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let _x = rand.solve_gd(b);
+        //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let x = rand.solve_cg(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let x = rand.solve_pcg1(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let x = rand.solve_pcg3(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let x = rand.solve_pcg5(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let x = rand.solve_pcgb(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+    }
+
+    #[test]
+    fn solve_pos_sym() {
+        let n: usize = 20;
+        let b = &RMatrix::gen_rand(n, 1);
+        let rand = &RMatrix::gen_rand_ubi(n).square();
+        solve_tri_test2(rand, b, 100000.0);
+        solve_test3(rand, b, 100000.0);
+
+        let n: usize = 100;
+        let b = &RMatrix::gen_rand(n, 1);
+        let rand = &RMatrix::gen_rand_sym_eig(n, (RMatrix::gen_rand(n, 1) * 100.0 + 1.0).get_data());
+        solve_test3(rand, b, 100.0);
+    }
+
+    #[test]
+    fn solve_sym() {
+        let n: usize = 100;
+        let b = &RMatrix::gen_rand(n, 1);
+
+        let rand = &RMatrix::gen_rand_sym_eig(n, (RMatrix::gen_rand(n, 1) * 100.0 - 50.0).get_data());
+        solve_test2(rand, b, 100.0);
+    }
+
+    #[test]
+    fn solve() {
+        let n: usize = 100;
+        let b = &RMatrix::gen_rand(n, 1);
+
+        let rand = &RMatrix::gen_rand_tri(n, n);
+        solve_tri_test1(rand, b, 100.0);
+        solve_test1(rand, b, 100.0);
+
+        let rand = &RMatrix::gen_rand(n, n);
+        solve_test1(rand, b, 100.0);
+    }
+
 }
+

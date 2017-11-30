@@ -93,6 +93,11 @@ impl RMatrix {
         ret
     }
 
+    // get data
+    pub fn get_data(&self) -> Vec<f64> {
+        self.data.clone()
+    }
+
     // print all data to the screen, with info
     pub fn print(&self) {
         println!("x: {}", self.x);
@@ -206,6 +211,43 @@ impl RMatrix {
         }
     }
 
+    // generate a matrix from given eigenvalues
+    // B = R1 ^ A ^ R2, R1 & R2: n Givens
+    pub fn gen_rand_eig(n: usize, eig: Vec<f64>) -> RMatrix {
+        assert_eq!(eig.len(), n, "RMatrix::gen_rand_eig(): vector size doesn't match");
+        let mut ret_data: Vec<f64> = vec![0.0; n * n];
+        let mut x: f64;
+        let mut y: f64;
+        let mut c: f64;
+        let mut s: f64;
+        for i in 0..n {
+            ret_data[i * n + i] = eig[i];
+        }
+        for k in 0..(n - 1) {
+            c = rand::thread_rng().gen_range(0.0, 1.0);
+            s = (1.0 - c * c).sqrt();
+            for i in 0..n {
+                x = ret_data[i * n + k];
+                y = ret_data[i * n + k + 1];
+                ret_data[i * n + k] = x * c + y * s;
+                ret_data[i * n + k + 1] = -x * s + y * c;
+            }
+            c = rand::thread_rng().gen_range(0.0, 1.0);
+            s = (1.0 - c * c).sqrt();
+            for j in 0..n {
+                x = ret_data[k * n + j];
+                y = ret_data[(k + 1) * n + j];
+                ret_data[k * n + j] = x * c + y * s;
+                ret_data[(k + 1) * n + j] = -x * s + y * c;
+            }
+        }
+        RMatrix {
+            x: n,
+            y: n,
+            data: ret_data
+        }
+    }
+
     // generate an up bidiagonal matrix, all elements are random number between 0 and 1
     pub fn gen_rand_ubi(n: usize) -> RMatrix {
         let mut ret_data: Vec<f64> = vec![0.0; n * n];
@@ -269,7 +311,7 @@ impl RMatrix {
     }
 
     // generate a symmetric matrix from given eigenvalues
-    // B = Q ^ A ^ !Q, Q: n Givens
+    // B = R ^ A ^ !R, R: n Givens
     pub fn gen_rand_sym_eig(n: usize, eig: Vec<f64>) -> RMatrix {
         assert_eq!(eig.len(), n, "RMatrix::gen_rand_sym_eig(): vector size doesn't match");
         let mut ret_data: Vec<f64> = vec![0.0; n * n];
@@ -2509,6 +2551,588 @@ impl RMatrix {
                 self.data[k * self.y + k] *= -1.0;
             }
         }
+    }
+
+    // solve a linear system, Cholesky
+    // A must be symmetric, positive-define
+    // A ^ x = b
+    pub fn solve_chol(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_chol(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_chol(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_chol(&RMatrix): matrix size mismatch");
+        let l = self.cholesky();
+        let mut y = b.clone();
+        for i in 0..self.x {
+            y.data[i] /= l.data[i * self.y + i];
+            for j in (i + 1)..self.x {
+                y.data[j] -= y.data[i] * l.data[j * self.y + i];
+            }
+        }
+        let mut x = y;
+        for i in (0..self.x).rev() {
+            x.data[i] /= l.data[i * self.y + i];
+            for j in 0..i {
+                x.data[j] -= x.data[i] * l.data[i * self.y + j];
+            }
+        }
+        x
+    }
+
+    // solve a tridiagonal linear system, Cholesky
+    // A must be symmetric, positive-define
+    // A ^ x = b
+    pub fn solve_tri_chol(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_tri_chol(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_tri_chol(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_tri_chol(&RMatrix): matrix size mismatch");
+        let l = self.cholesky_tri();
+        let mut y = b.clone();
+        for i in 0..(self.x - 1) {
+            y.data[i] /= l.data[i * self.y + i];
+            y.data[i + 1] -= y.data[i] * l.data[(i + 1) * self.y + i];
+        }
+        y.data[self.x - 1] /= l.data[(self.x - 1) * (self.y + 1)];
+        let mut x = y;
+        for i in (1..self.x).rev() {
+            x.data[i] /= l.data[i * self.y + i];
+            x.data[i - 1] -= x.data[i] * l.data[i * self.y + (i - 1)];
+        }
+        x.data[0] /= l.data[0];
+        x
+    }
+
+    // solve a linear system, LU
+    // A ^ x = b
+    pub fn solve_lu(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_lu(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_lu(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_lu(&RMatrix): matrix size mismatch");
+        let (l, u) = self.lu();
+        let mut y = b.clone();
+        for i in 0..self.x {
+            y.data[i] /= l.data[i * self.y + i];
+            for j in (i + 1)..self.x {
+                y.data[j] -= y.data[i] * l.data[j * self.y + i];
+            }
+        }
+        let mut x = y;
+        for i in (0..self.x).rev() {
+            x.data[i] /= u.data[i * self.y + i];
+            for j in 0..i {
+                x.data[j] -= x.data[i] * u.data[j * self.y + i];
+            }
+        }
+        x
+    }
+
+    // solve a linear system, LU
+    // A ^ x = b
+    pub fn solve_tri_lu(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_tri_lu(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_tri_lu(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_tri_lu(&RMatrix): matrix size mismatch");
+        let (l, u) = self.lu_tri();
+        let mut y = b.clone();
+        for i in 0..(self.x - 1) {
+            y.data[i] /= l.data[i * self.y + i];
+            y.data[i + 1] -= y.data[i] * l.data[(i + 1) * self.y + i];
+        }
+        y.data[self.x - 1] /= l.data[(self.x - 1) * (self.y + 1)];
+        let mut x = y;
+        for i in (1..self.x).rev() {
+            x.data[i] /= u.data[i * self.y + i];
+            x.data[i - 1] -= x.data[i] * u.data[(i - 1) * self.y + i];
+        }
+        x.data[0] /= u.data[0];
+        x
+    }
+
+    // solve a linear system, gradient descent
+    // A must be symmetric, positive-define
+    // A ^ x = b
+    pub fn solve_gd(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_gd(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_gd(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_gd(&RMatrix): matrix size mismatch");
+        let mut x = RMatrix::gen_zeros(b.x, 1);
+        let mut r = b.clone();
+        let mut delta: f64 = r.norm_2();
+        let mut ar: RMatrix;
+        let mut a: f64;
+        let mut s1: f64;
+        let mut s2: f64;
+        while delta > 1.0 {
+            ar = self ^ &r;
+            s1 = 0.0;
+            s2 = 0.0;
+            for i in 0..self.x {
+                s1 += r.data[i] * r.data[i];
+                s2 += ar.data[i] * r.data[i];
+            }
+            a = s1 / s2;
+            x += a * &r;
+            r -= a * &ar;
+            delta = r.norm_2();
+        }
+        x
+    }
+
+    // solve a linear system, gradient descent, normal equations
+    // A ^ x = b
+    pub fn solve_gdnr(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_gdnr(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_gdnr(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_gdnr(&RMatrix): matrix size mismatch");
+        let mut x = RMatrix::gen_zeros(b.x, 1);
+        let mut r = !(!b ^ self);
+        let mut delta: f64 = r.norm_2();
+        let mut ar: RMatrix;
+        let mut a: f64;
+        let mut s1: f64;
+        let mut s2: f64;
+        while delta > 10.0 {
+            ar = self ^ &r;
+            s1 = 0.0;
+            s2 = 0.0;
+            for i in 0..self.x {
+                s1 += r.data[i] * r.data[i];
+                s2 += ar.data[i] * ar.data[i];
+            }
+            a = s1 / s2;
+            x += a * &r;
+            r -= a * !(!&ar ^ self);
+            delta = r.norm_2();
+        }
+        x
+    }
+
+    // solve a linear system, conjugate gradient
+    // A must be symmetric, positive-define
+    // A ^ x = b
+    pub fn solve_cg(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_cg(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_cg(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_cg(&RMatrix): matrix size mismatch");
+        let mut x = RMatrix::gen_zeros(b.x, 1);
+        let mut r = b.clone();
+        let mut p = r.clone();
+        let mut delta: f64 = r.norm_2();
+        let mut ap: RMatrix;
+        let mut a: f64;
+        let mut b: f64;
+        let mut s1: f64 = 0.0;
+        let mut s2: f64;
+        let mut den: f64;
+        for i in 0..self.x {
+            s1 += r.data[i] * r.data[i];
+        }
+        while delta > 0.00000000000001 {
+            ap = self ^ &p;
+            den = 0.0;
+            for i in 0..self.x {
+                den += p.data[i] * ap.data[i];
+            }
+            if den == 0.0 {
+                break;
+            }
+            a = s1 / den;
+            x += a * &p;
+            r -= a * &ap;
+            s2 = s1;
+            s1 = 0.0;
+            for i in 0..self.x {
+                s1 += r.data[i] * r.data[i];
+            }
+            b = s1 / s2;
+            p = &r + b * &p;
+            delta = r.norm_2();
+        }
+        x
+    }
+
+    // solve a linear system, preconditioned conjugate gradient, Jacobi
+    // A must be symmetric, positive-define
+    // A ^ x = b
+    pub fn solve_pcg1(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_pcg1(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_pcg1(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_pcg1(&RMatrix): matrix size mismatch");
+        let m = RMatrix::gen_vec(self.get_diag());
+        let mut x = RMatrix::gen_zeros(b.x, 1);
+        let mut r = b.clone();
+        let mut z = &r / &m;
+        let mut p = z.clone();
+        let mut delta: f64 = r.norm_2();
+        let mut ap: RMatrix;
+        let mut a: f64;
+        let mut b: f64;
+        let mut s1: f64 = 0.0;
+        let mut s2: f64;
+        let mut den: f64;
+        for i in 0..self.x {
+            s1 += r.data[i] * z.data[i];
+        }
+        while delta > 0.00000000000001 {
+            ap = self ^ &p;
+            den = 0.0;
+            for i in 0..self.x {
+                den += p.data[i] * ap.data[i];
+            }
+            a = s1 / den;
+            if den == 0.0 {
+                break;
+            }
+            x += a * &p;
+            r -= a * &ap;
+            z = &r / &m;
+            s2 = s1;
+            s1 = 0.0;
+            for i in 0..self.x {
+                s1 += r.data[i] * z.data[i];
+            }
+            b = s1 / s2;
+            p = &z + b * &p;
+            delta = r.norm_2();
+        }
+        x
+    }
+
+    // solve a linear system, preconditioned conjugate gradient, A3
+    // A must be symmetric, positive-define
+    // A ^ x = b
+    pub fn solve_pcg3(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_pcg3(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_pcg3(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_pcg3(&RMatrix): matrix size mismatch");
+        let mut m = self.clone();
+        for i in 0..self.x {
+            for j in (i + 2)..self.y {
+                m.data[i * self.y + j] = 0.0;
+                m.data[j * self.y + i] = 0.0;
+            }
+        }
+        let mut x = RMatrix::gen_zeros(b.x, 1);
+        let mut r = b.clone();
+        let mut z = m.solve_lu(&r);
+        let mut p = z.clone();
+        let mut delta: f64 = r.norm_2();
+        let mut ap: RMatrix;
+        let mut a: f64;
+        let mut b: f64;
+        let mut s1: f64 = 0.0;
+        let mut s2: f64;
+        let mut den: f64;
+        for i in 0..self.x {
+            s1 += r.data[i] * z.data[i];
+        }
+        while delta > 0.00000000000001 {
+            ap = self ^ &p;
+            den = 0.0;
+            for i in 0..self.x {
+                den += p.data[i] * ap.data[i];
+            }
+            a = s1 / den;
+            if den == 0.0 {
+                break;
+            }
+            x += a * &p;
+            r -= a * &ap;
+            z = m.solve_lu(&r);
+            s2 = s1;
+            s1 = 0.0;
+            for i in 0..self.x {
+                s1 += r.data[i] * z.data[i];
+            }
+            b = s1 / s2;
+            p = &z + b * &p;
+            delta = r.norm_2();
+        }
+        x
+    }
+
+    // solve a linear system, preconditioned conjugate gradient, A5
+    // A must be symmetric, positive-define
+    // A ^ x = b
+    pub fn solve_pcg5(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_pcg5(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_pcg5(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_pcg5(&RMatrix): matrix size mismatch");
+        let mut m = self.clone();
+        for i in 0..self.x {
+            for j in (i + 3)..self.y {
+                m.data[i * self.y + j] = 0.0;
+                m.data[j * self.y + i] = 0.0;
+            }
+        }
+        let mut x = RMatrix::gen_zeros(b.x, 1);
+        let mut r = b.clone();
+        let mut z = m.solve_lu(&r);
+        let mut p = z.clone();
+        let mut delta: f64 = r.norm_2();
+        let mut ap: RMatrix;
+        let mut a: f64;
+        let mut b: f64;
+        let mut s1: f64 = 0.0;
+        let mut s2: f64;
+        let mut den: f64;
+        for i in 0..self.x {
+            s1 += r.data[i] * z.data[i];
+        }
+        while delta > 0.00000000000001 {
+            ap = self ^ &p;
+            den = 0.0;
+            for i in 0..self.x {
+                den += p.data[i] * ap.data[i];
+            }
+            a = s1 / den;
+            if den == 0.0 {
+                break;
+            }
+            x += a * &p;
+            r -= a * &ap;
+            z = m.solve_lu(&r);
+            s2 = s1;
+            s1 = 0.0;
+            for i in 0..self.x {
+                s1 += r.data[i] * z.data[i];
+            }
+            b = s1 / s2;
+            p = &z + b * &p;
+            delta = r.norm_2();
+        }
+        x
+    }
+
+    // solve a linear system, preconditioned conjugate gradient, Ab
+    // A must be symmetric, positive-define
+    // A ^ x = b
+    pub fn solve_pcgb(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_pcgb(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_pcgb(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_pcgb(&RMatrix): matrix size mismatch");
+        let mut m = self.clone();
+        let mut i: usize = 0;
+        while i < self.x {
+            let mut rand: usize = rand::thread_rng().gen_range(3, 5);
+            if (i + rand + 1) > self.x {
+                rand = self.x - i;
+            }
+            for k in i..(i + rand) {
+                for j in (i + rand)..self.y {
+                    m.data[k * self.y + j] = 0.0;
+                    m.data[j * self.y + k] = 0.0;
+                }
+            }
+            i += rand;
+        }
+        let mut x = RMatrix::gen_zeros(b.x, 1);
+        let mut r = b.clone();
+        let mut z = m.solve_lu(&r);
+        let mut p = z.clone();
+        let mut delta: f64 = r.norm_2();
+        let mut ap: RMatrix;
+        let mut a: f64;
+        let mut b: f64;
+        let mut s1: f64 = 0.0;
+        let mut s2: f64;
+        let mut den: f64;
+        for i in 0..self.x {
+            s1 += r.data[i] * z.data[i];
+        }
+        while delta > 0.00000000000001 {
+            ap = self ^ &p;
+            den = 0.0;
+            for i in 0..self.x {
+                den += p.data[i] * ap.data[i];
+            }
+            a = s1 / den;
+            if den == 0.0 {
+                break;
+            }
+            x += a * &p;
+            r -= a * &ap;
+            z = m.solve_lu(&r);
+            s2 = s1;
+            s1 = 0.0;
+            for i in 0..self.x {
+                s1 += r.data[i] * z.data[i];
+            }
+            b = s1 / s2;
+            p = &z + b * &p;
+            delta = r.norm_2();
+        }
+        x
+    }
+
+    // solve a linear system, Lanczos
+    // A must be symmetric
+    // A ^ x = b
+    pub fn solve_lanczos(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_lanczos(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_lanczos(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_lanczos(&RMatrix): matrix size mismatch");
+        let mut q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut ll_data: Vec<f64> = vec![0.0; self.x];
+        let mut uu_data: Vec<f64> = vec![0.0; self.x];
+        let mut ud_data: Vec<f64> = vec![0.0; self.x + 1];
+        let mut y_data: Vec<f64> = vec![0.0; self.x + 1];
+        let mut q: RMatrix = RMatrix::gen_zeros(self.x, 1);
+        let mut r: RMatrix = b.clone();
+        let mut a: f64;
+        let mut b: f64 = r.norm_2();
+        let mut eps: f64;
+        y_data[0] = b;
+        let mut bq: RMatrix;
+        for n in 0..self.y {
+            bq = b * &q;
+            q = &r / b;
+            r = (self ^ &q) - &bq;
+            a = 0.0;
+            for i in 0..self.x {
+                a += q.data[i] * r.data[i];
+            }
+            for i in 0..self.x {
+                r.data[i] -= a * q.data[i];
+            }
+            b = r.norm_2();
+            assert_ne!(b, 0.0, "RMatrix.solve_lanczos(): break!");
+            // for Q
+            for i in 0..self.x {
+                q_data[n * self.x + i] = q.data[i];
+            }
+            // submat LU decomposition
+            ud_data[n] += a;
+            ll_data[n] = b / ud_data[n];
+            uu_data[n] = b;
+            ud_data[n + 1] = -b * ll_data[n];
+            // solve submat(LU, l only)
+            y_data[n + 1] -= y_data[n] * ll_data[n];
+            eps = (b * y_data[n] / ud_data[n]).abs();
+            if eps < 0.00000000000001 {
+                // solve submat(LU, u)
+                for i in (1..n).rev() {
+                    y_data[i] /= ud_data[i];
+                    y_data[i - 1] -= y_data[i] * uu_data[i - 1];
+                }
+                y_data[0] /= ud_data[0];
+                // clean
+                y_data[n + 1] = 0.0;
+                break;
+            }
+        }
+        let y = RMatrix{
+            x: 1,
+            y: self.x,
+            data: y_data
+        };
+        let q = RMatrix {
+            x: self.x,
+            y: self.x,
+            data: q_data
+        };
+        !(y ^ q)
+    }
+
+    // solve a linear system, minimal residual
+    // A must be symmetric
+    // A ^ x = b
+    pub fn solve_minres(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_minres(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_minres(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_minres(&RMatrix): matrix size mismatch");
+        let mut q_data: Vec<f64> = vec![0.0; (self.x + 1) * self.x];
+        let mut q1_data: Vec<f64> = vec![0.0; self.x + 1];
+        let mut rd_data: Vec<f64> = vec![0.0; self.x];
+        let mut r1_data: Vec<f64> = vec![0.0; self.x];
+        let mut r2_data: Vec<f64> = vec![0.0; self.x];
+        let mut y_data: Vec<f64> = vec![0.0; self.x + 1];
+        let mut q: RMatrix = RMatrix::gen_zeros(self.x, 1);
+        let mut r: RMatrix = b.clone();
+        let mut a: f64;
+        let mut b: f64 = r.norm_2();
+        let mut eps: f64;
+        let mut x: f64;
+        let mut y: f64;
+        let mut c: f64 = 0.0;
+        let mut s: f64 = 0.0;
+        y_data[0] = b;
+        q1_data[0] = 1.0;
+        let mut bq = b * &q;
+        q = &r / b;
+        for i in 0..self.x {
+            q_data[i] = q.data[i];
+        }
+        for n in 0..self.y {
+            r = (self ^ &q) - &bq;
+            a = 0.0;
+            for i in 0..self.x {
+                a += q.data[i] * r.data[i];
+            }
+            for i in 0..self.x {
+                r.data[i] -= a * q.data[i];
+            }
+            b = r.norm_2();
+            assert_ne!(b, 0.0, "RMatrix.solve_minres(): break!");
+            bq = b * &q;
+            q = &r / b;
+            // for Q
+            for i in 0..self.x {
+                q_data[(n + 1) * self.x + i] = q.data[i];
+            }
+            // submat QR decomposition, Givens
+            // R
+            if n == 0 {
+                rd_data[n] = a;
+                r1_data[n] = b;
+            } else {
+                x = r1_data[n - 1];
+                // y = a
+                r1_data[n - 1] =  x * c + a * s;
+                rd_data[n] = -x * s + a * c;
+                // x = 0.0
+                // y = b
+                r2_data[n - 1] = b * s;
+                r1_data[n] = b * c;
+            }
+            x = rd_data[n];
+            y = b;
+            c = x / (x * x + y * y).sqrt();
+            s = y / (x * x + y * y).sqrt();
+            rd_data[n] =  x * c + y * s;
+            // Q
+            x = q1_data[n];
+            // y = 0.0
+            q1_data[n] =  x * c;
+            q1_data[n + 1] = -x * s;
+            // solve submat(LU, l only)
+            eps = (q1_data[n + 1]).abs();
+            if eps < 0.00000000000001 {
+                // solve submat(QR, r)
+                for i in (0..n).rev() {
+                    y_data[i] = q1_data[i] * y_data[0];
+                }
+                for i in (2..n).rev() {
+                    y_data[i] /= rd_data[i];
+                    y_data[i - 1] -= y_data[i] * r1_data[i - 1];
+                    y_data[i - 2] -= y_data[i] * r2_data[i - 2];
+                }
+                y_data[1] /= rd_data[1];
+                y_data[0] -= y_data[1] * r1_data[0];
+                y_data[0] /= rd_data[0];
+                break;
+            }
+        }
+        let y = RMatrix{
+            x: 1,
+            y: self.x + 1,
+            data: y_data
+        };
+        let q = RMatrix {
+            x: self.x + 1,
+            y: self.x,
+            data: q_data
+        };
+        !(y ^ q)
     }
 }
 
