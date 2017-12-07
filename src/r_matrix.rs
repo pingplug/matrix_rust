@@ -27,6 +27,49 @@ use std::ops::Rem;
 use std::ops::RemAssign;
 use r_matrix::rand::Rng;
 
+// helper macro
+// fn(&mut A) ==> fn(&A) -> A
+macro_rules! impl_fn_i_0 {
+    ($method:ident from $imethod:ident for $type:ty) => {
+        impl $type {
+            #[inline]
+            pub fn $method(&self) -> $type {
+                let mut tmp = self.clone();
+                tmp.$imethod();
+                tmp
+            }
+        }
+    }
+}
+
+// fn(&mut A) -> A ==> fn(&A) -> (A, B)
+macro_rules! impl_fn_i_1 {
+    ($method:ident from $imethod:ident for $type:ty) => {
+        impl $type {
+            #[inline]
+            pub fn $method(&self) -> ($type, $type) {
+                let mut tmp = self.clone();
+                let a = tmp.$imethod();
+                (a, tmp)
+            }
+        }
+    }
+}
+
+// fn(&mut A) -> (A, C) ==> fn(&A) -> (A, B, C)
+macro_rules! impl_fn_i_2 {
+    ($method:ident from $imethod:ident for $type:ty) => {
+        impl $type {
+            #[inline]
+            pub fn $method(&self) -> ($type, $type, $type) {
+                let mut tmp = self.clone();
+                let (a, c) = tmp.$imethod();
+                (a, tmp, c)
+            }
+        }
+    }
+}
+
 // real(float64) matrix
 pub struct RMatrix {
     // x: rows
@@ -521,108 +564,86 @@ impl RMatrix {
 
     // Cholesky decomposition
     // A must be symmetric, positive-define
+    // in place
     // A = L ^ !L
-    pub fn cholesky(&self) -> RMatrix {
-        assert_eq!(self.x, self.y, "RMatrix.cholesky(): square matrix only");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
+    pub fn ichol(&mut self) {
+        assert_eq!(self.x, self.y, "RMatrix.chol(): square matrix only");
         for i in 0..self.x {
-            for j in 0..(i + 1) {
-                ret_data[i * self.y + j] = self.data[i * self.y + j];
+            for j in (i + 1)..self.y {
+                self.data[i * self.y + j] = 0.0;
             }
         }
         for i in 0..self.x {
             for j in 0..i {
                 for k in 0..j {
-                    ret_data[i * self.y + j] -= ret_data[i * self.y + k] * ret_data[j * self.y + k];
+                    self.data[i * self.y + j] -= self.data[i * self.y + k] * self.data[j * self.y + k];
                 }
-                ret_data[i * self.y + j] /= ret_data[j * self.y + j];
-                ret_data[i * self.y + i] -= ret_data[i * self.y + j] * ret_data[i * self.y + j];
+                self.data[i * self.y + j] /= self.data[j * self.y + j];
+                self.data[i * self.y + i] -= self.data[i * self.y + j] * self.data[i * self.y + j];
             }
-            ret_data[i * self.y + i] = ret_data[i * self.y + i].sqrt();
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
+            self.data[i * self.y + i] = self.data[i * self.y + i].sqrt();
         }
     }
 
     // Cholesky decomposition for tridiagonal matrix
     // A must be symmetric, positive-define
+    // in place
     // A = L ^ !L
-    pub fn cholesky_tri(&self) -> RMatrix {
-        assert_eq!(self.x, self.y, "RMatrix.cholesky_tri(): square matrix only");
-        let mut ret_data: Vec<f64> = vec![0.0; self.x * self.y];
-        ret_data[0] = self.data[0];
+    pub fn ichol_tri(&mut self) {
+        assert_eq!(self.x, self.y, "RMatrix.chol_tri(): square matrix only");
         for i in 1..self.x {
-            ret_data[i * self.y + i - 1] = self.data[i * self.y + i - 1];
-            ret_data[i * self.y + i] = self.data[i * self.y + i];
+            self.data[(i - 1) * self.y + i] = 0.0;
         }
-        ret_data[0] = self.data[0].sqrt();
+        self.data[0] = self.data[0].sqrt();
         for i in 1..self.x {
-            ret_data[i * self.y + i - 1] /= ret_data[(i - 1) * (self.y + 1)];
-            ret_data[i * self.y + i] -= ret_data[i * self.y + i - 1] * ret_data[i * self.y + i - 1];
-            ret_data[i * self.y + i] = ret_data[i * self.y + i].sqrt();
-        }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
+            self.data[i * self.y + i - 1] /= self.data[(i - 1) * (self.y + 1)];
+            self.data[i * self.y + i] -= self.data[i * self.y + i - 1] * self.data[i * self.y + i - 1];
+            self.data[i * self.y + i] = self.data[i * self.y + i].sqrt();
         }
     }
 
     // LU decomposition
+    // in place
     // A = L ^ U
-    pub fn lu(&self) -> (RMatrix, RMatrix) {
+    pub fn ilu(&mut self) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.lu(): square matrix only");
         let mut ret_l_data: Vec<f64> = vec![0.0; self.x * self.y];
-        let mut ret_u_data: Vec<f64> = self.data.clone();
         for j in 0..self.y {
             for i in (j + 1)..self.x {
-                ret_l_data[i * self.y + j] = ret_u_data[i * self.y + j] / ret_u_data[j * self.y + j];
+                ret_l_data[i * self.y + j] = self.data[i * self.y + j] / self.data[j * self.y + j];
                 for k in j..self.y {
-                    ret_u_data[i * self.y + k] -= ret_u_data[j * self.y + k] * ret_l_data[i * self.y + j];
+                    self.data[i * self.y + k] -= self.data[j * self.y + k] * ret_l_data[i * self.y + j];
                 }
             }
         }
         for i in 0..self.x {
             ret_l_data[i * self.y + i] = 1.0;
         }
-        (RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_l_data
-        },
         RMatrix {
             x: self.x,
             y: self.y,
-            data: ret_u_data
-        })
+            data: ret_l_data
+        }
     }
 
     // LU decomposition for tridiagonal matrix
+    // in place
     // A = L ^ U
-    pub fn lu_tri(&self) -> (RMatrix, RMatrix) {
+    pub fn ilu_tri(&mut self) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.lu_tri(): square matrix only");
         let mut ret_l_data: Vec<f64> = vec![0.0; self.x * self.y];
-        let mut ret_u_data: Vec<f64> = self.data.clone();
         ret_l_data[0] = 1.0;
         for j in 1..self.y {
-            ret_l_data[j * self.y + j - 1] = ret_u_data[j * self.y + j - 1] / ret_u_data[(j - 1) * (self.y + 1)];
+            ret_l_data[j * self.y + j - 1] = self.data[j * self.y + j - 1] / self.data[(j - 1) * (self.y + 1)];
             ret_l_data[j * self.y + j] = 1.0;
-            ret_u_data[j * self.y + j - 1] = 0.0;
-            ret_u_data[j * self.y + j] -= ret_u_data[(j - 1) * self.y + j] * ret_l_data[j * self.y + j - 1];
+            self.data[j * self.y + j - 1] = 0.0;
+            self.data[j * self.y + j] -= self.data[(j - 1) * self.y + j] * ret_l_data[j * self.y + j - 1];
         }
-        (RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_l_data
-        },
         RMatrix {
             x: self.x,
             y: self.y,
-            data: ret_u_data
-        })
+            data: ret_l_data
+        }
     }
 
     // LU decomposition
@@ -983,10 +1004,10 @@ impl RMatrix {
     }
 
     // QR decomposition, Householder
+    // in place
     // A = Q ^ R
-    pub fn qr_hh(&self) -> (RMatrix, RMatrix) {
+    pub fn iqr_hh(&mut self) -> RMatrix {
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
-        let mut ret_r_data: Vec<f64> = self.data.clone();
         let mut tmp: Vec<f64> = vec![0.0; self.x];
         let mut n2: f64;
         let min: usize = self.x.min(self.y);
@@ -999,7 +1020,7 @@ impl RMatrix {
                 tmp[i] = 0.0;
             }
             for i in j..self.x {
-                tmp[i] = ret_r_data[i * self.y + j];
+                tmp[i] = self.data[i * self.y + j];
             }
             n2 = 0.0;
             for i in j..self.x {
@@ -1022,14 +1043,14 @@ impl RMatrix {
             for k in j..self.y {
                 n2 = 0.0;
                 for i in j..self.x {
-                    n2 += ret_r_data[i * self.y + k] * tmp[i];
+                    n2 += self.data[i * self.y + k] * tmp[i];
                 }
                 for i in j..self.x {
-                    ret_r_data[i * self.y + k] -= 2.0 * n2 * tmp[i];
+                    self.data[i * self.y + k] -= 2.0 * n2 * tmp[i];
                 }
             }
             for i in (j + 1)..self.x {
-                ret_r_data[i * self.y + j] = 0.0;
+                self.data[i * self.y + j] = 0.0;
             }
             // get Q
             for k in 0..self.x {
@@ -1042,22 +1063,17 @@ impl RMatrix {
                 }
             }
         }
-        (RMatrix {
+        RMatrix {
             x: self.x,
             y: self.x,
             data: ret_q_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_r_data
-        })
+        }
     }
 
     // QR decomposition, Householder
     // in place
     // without Q
-    pub fn iqr_hh(&mut self) {
+    pub fn ir_hh(&mut self) {
         let mut tmp: Vec<f64> = vec![0.0; self.x];
         let mut n2: f64;
         let min: usize = self.x.min(self.y);
@@ -1103,10 +1119,10 @@ impl RMatrix {
     }
 
     // QR decomposition, Givens
+    // in place
     // A = Q ^ R
-    pub fn qr_givens(&self) -> (RMatrix, RMatrix) {
+    pub fn iqr_givens(&mut self) -> RMatrix {
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
-        let mut ret_r_data: Vec<f64> = self.data.clone();
         let mut x: f64;
         let mut y: f64;
         let mut c: f64;
@@ -1120,17 +1136,17 @@ impl RMatrix {
                     continue;
                 }
                 // Givens
-                x = ret_r_data[j * self.y + j];
-                y = ret_r_data[i * self.y + j];
+                x = self.data[j * self.y + j];
+                y = self.data[i * self.y + j];
                 c = x / (x * x + y * y).sqrt();
                 s = y / (x * x + y * y).sqrt();
                 for k in j..self.y {
-                    x = ret_r_data[j * self.y + k];
-                    y = ret_r_data[i * self.y + k];
-                    ret_r_data[j * self.y + k] =  x * c + y * s;
-                    ret_r_data[i * self.y + k] = -x * s + y * c;
+                    x = self.data[j * self.y + k];
+                    y = self.data[i * self.y + k];
+                    self.data[j * self.y + k] =  x * c + y * s;
+                    self.data[i * self.y + k] = -x * s + y * c;
                 }
-                ret_r_data[i * self.y + j] = 0.0;
+                self.data[i * self.y + j] = 0.0;
                 // get Q
                 for k in 0..(i + 1) {
                     x = ret_q_data[k * self.x + j];
@@ -1140,22 +1156,17 @@ impl RMatrix {
                 }
             }
         }
-        (RMatrix {
+        RMatrix {
             x: self.x,
             y: self.x,
             data: ret_q_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_r_data
-        })
+        }
     }
 
     // QR decomposition, Givens
     // in place
     // without Q
-    pub fn iqr_givens(&mut self) {
+    pub fn ir_givens(&mut self) {
         let mut x: f64;
         let mut y: f64;
         let mut c: f64;
@@ -1185,7 +1196,7 @@ impl RMatrix {
     // in place
     // A = Q ^ H ^ !Q
     pub fn iqhq_hh(&mut self) -> RMatrix {
-        assert_eq!(self.x, self.y, "RMatrix.iqhq_hh(): square matrix only");
+        assert_eq!(self.x, self.y, "RMatrix.qhq_hh(): square matrix only");
         if self.x < 3 {
             return RMatrix::gen_eye(self.x, self.y);
         }
@@ -1265,7 +1276,7 @@ impl RMatrix {
     // in place
     // A = Q ^ H ^ !Q
     pub fn iqhq_givens(&mut self) -> RMatrix {
-        assert_eq!(self.x, self.y, "RMatrix.iqhq_givens(): square matrix only");
+        assert_eq!(self.x, self.y, "RMatrix.qhq_givens(): square matrix only");
         if self.x < 3 {
             return RMatrix::gen_eye(self.x, self.y);
         }
@@ -1372,7 +1383,7 @@ impl RMatrix {
     // in place
     // A = Q ^ T ^ !Q
     pub fn iqtq_hh(&mut self) -> RMatrix {
-        assert_eq!(self.x, self.y, "RMatrix.iqtq_hh(): square matrix only");
+        assert_eq!(self.x, self.y, "RMatrix.qtq_hh(): square matrix only");
         if self.x < 3 {
             return RMatrix::gen_eye(self.x, self.y);
         }
@@ -1472,7 +1483,7 @@ impl RMatrix {
     // in place
     // A = Q ^ T ^ !Q
     pub fn iqtq_givens(&mut self) -> RMatrix {
-        assert_eq!(self.x, self.y, "RMatrix.iqtq_givens(): square matrix only");
+        assert_eq!(self.x, self.y, "RMatrix.qtq_givens(): square matrix only");
         if self.x < 3 {
             return RMatrix::gen_eye(self.x, self.y);
         }
@@ -1614,7 +1625,7 @@ impl RMatrix {
     // up/dn bidiagonal matrix decomposition, Householder
     // in place
     // A = P ^ B ^ Q
-    pub fn ipqb_hh(&mut self) -> (RMatrix, RMatrix) {
+    pub fn ipbq_hh(&mut self) -> (RMatrix, RMatrix) {
         let mut ret_p_data: Vec<f64> = vec![0.0; self.x * self.x];
         let mut ret_q_data: Vec<f64> = vec![0.0; self.y * self.y];
         let mut tmp_x: Vec<f64> = vec![0.0; self.x];
@@ -1847,7 +1858,7 @@ impl RMatrix {
     // up/dn bidiagonal matrix decomposition, Givens
     // in place
     // A = P ^ B ^ Q
-    pub fn ipqb_givens(&mut self) -> (RMatrix, RMatrix) {
+    pub fn ipbq_givens(&mut self) -> (RMatrix, RMatrix) {
         let mut ret_p_data: Vec<f64> = vec![0.0; self.x * self.x];
         let mut ret_q_data: Vec<f64> = vec![0.0; self.y * self.y];
         let mut x: f64;
@@ -2063,7 +2074,7 @@ impl RMatrix {
     // in place
     // without Q
     pub fn ih_hh(&mut self) {
-        assert_eq!(self.x, self.y, "RMatrix.ih_hh(): square matrix only");
+        assert_eq!(self.x, self.y, "RMatrix.h_hh(): square matrix only");
         if self.x < 3 {
             return;
         }
@@ -2124,7 +2135,7 @@ impl RMatrix {
     // in place
     // without Q
     pub fn ih_givens(&mut self) {
-        assert_eq!(self.x, self.y, "RMatrix.ih_givens(): square matrix only");
+        assert_eq!(self.x, self.y, "RMatrix.h_givens(): square matrix only");
         if self.x < 3 {
             return;
         }
@@ -2164,7 +2175,7 @@ impl RMatrix {
     // in place
     // without Q
     pub fn it_hh(&mut self) {
-        assert_eq!(self.x, self.y, "RMatrix.it_hh(): square matrix only");
+        assert_eq!(self.x, self.y, "RMatrix.t_hh(): square matrix only");
         if self.x < 3 {
             return;
         }
@@ -2245,7 +2256,7 @@ impl RMatrix {
     // in place
     // without Q
     pub fn it_givens(&mut self) {
-        assert_eq!(self.x, self.y, "RMatrix.it_givens(): square matrix only");
+        assert_eq!(self.x, self.y, "RMatrix.t_givens(): square matrix only");
         if self.x < 3 {
             return;
         }
@@ -2631,7 +2642,7 @@ impl RMatrix {
     // in place
     // A = U ^ S ^ V
     pub fn isvd_qr(&mut self) -> (RMatrix, RMatrix) {
-        let (mut u, mut v) = self.ipqb_hh();
+        let (mut u, mut v) = self.ipbq_hh();
         let n: usize = self.x.min(self.y);
         let mut n1: f64;
         let mut n2: f64;
@@ -2715,7 +2726,7 @@ impl RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_chol(&RMatrix): square matrix only");
         assert_eq!(1, b.y, "RMatrix.solve_chol(&RMatrix): b must be vector");
         assert_eq!(self.x, b.x, "RMatrix.solve_chol(&RMatrix): matrix size mismatch");
-        let l = self.cholesky();
+        let l = self.chol();
         let mut y = b.clone();
         for i in 0..self.x {
             y.data[i] /= l.data[i * self.y + i];
@@ -2740,7 +2751,7 @@ impl RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_tri_chol(&RMatrix): square matrix only");
         assert_eq!(1, b.y, "RMatrix.solve_tri_chol(&RMatrix): b must be vector");
         assert_eq!(self.x, b.x, "RMatrix.solve_tri_chol(&RMatrix): matrix size mismatch");
-        let l = self.cholesky_tri();
+        let l = self.chol_tri();
         let mut y = b.clone();
         for i in 0..(self.x - 1) {
             y.data[i] /= l.data[i * self.y + i];
@@ -3352,6 +3363,35 @@ impl Clone for RMatrix {
         self.data = ret_data;
     }
 }
+
+impl_fn_i_0!{chol from ichol for RMatrix}
+impl_fn_i_0!{chol_tri from ichol_tri for RMatrix}
+
+impl_fn_i_1!{lu from ilu for RMatrix}
+impl_fn_i_1!{lu_tri from ilu_tri for RMatrix}
+
+impl_fn_i_1!{qr_hh from iqr_hh for RMatrix}
+impl_fn_i_0!{r_hh from ir_hh for RMatrix}
+impl_fn_i_1!{qhq_hh from iqhq_hh for RMatrix}
+impl_fn_i_0!{h_hh from ih_hh for RMatrix}
+impl_fn_i_1!{qtq_hh from iqtq_hh for RMatrix}
+impl_fn_i_0!{t_hh from it_hh for RMatrix}
+
+impl_fn_i_1!{qr_givens from iqr_givens for RMatrix}
+impl_fn_i_0!{r_givens from ir_givens for RMatrix}
+impl_fn_i_1!{qhq_givens from iqhq_givens for RMatrix}
+impl_fn_i_0!{h_givens from ih_givens for RMatrix}
+impl_fn_i_1!{qtq_givens from iqtq_givens for RMatrix}
+impl_fn_i_0!{t_givens from it_givens for RMatrix}
+
+impl_fn_i_2!{pbq_hh from ipbq_hh for RMatrix}
+impl_fn_i_0!{b_hh from ib_hh for RMatrix}
+
+impl_fn_i_2!{pbq_givens from ipbq_givens for RMatrix}
+impl_fn_i_0!{b_givens from ib_givens for RMatrix}
+
+impl_fn_i_2!{svd_qr from isvd_qr for RMatrix}
+impl_fn_i_0!{sv_qr from isv_qr for RMatrix}
 
 // operators
 // helper macro
