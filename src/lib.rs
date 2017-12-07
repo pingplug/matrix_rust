@@ -210,6 +210,10 @@ mod tests {
         rand1.ih_givens();
         assert!(feq((rand1 - r).norm_2() / r.norm_2(), 0.0));
 
+        let (q, h) = rand.qhq_arnoldi();
+        assert!(feq((q.square() - RMatrix::gen_eye(x, x)).norm_f() / fx, 0.0));
+        assert!(feq(((&q ^ h ^ !&q) - rand).norm_2() / rand.norm_2(), 0.0));
+
         let rand = &RMatrix::gen_rand_sym(x);
 
         let mut rand1 = rand.clone();
@@ -231,20 +235,59 @@ mod tests {
         let mut rand1 = rand.clone();
         rand1.it_givens();
         assert!(feq((rand1 - r).norm_2() / r.norm_2(), 0.0));
+
+        let (_q, _t) = rand.qtq_lanczos();
+        //assert!(feq((q.square() - RMatrix::gen_eye(x, x)).norm_f() / fx, 0.0));
+        //assert!(feq(((&q ^ t ^ !&q) - rand).norm_2() / rand.norm_2(), 0.0));
+    }
+
+    fn qr_test4(x: usize, y: usize, fx: f64, fy: f64) {
+        qr_test3(x, y, fx, fy);
+        // TODO
+        // SVD for skew-symmetric matrix is slow now
+        // use norm_f instead of norm_2
+        let rand = &RMatrix::gen_rand_ssym(x);
+
+        let mut rand1 = rand.clone();
+        let q = rand1.iqtq_hh();
+        assert!(feq((q.square() - RMatrix::gen_eye(x, x)).norm_f() / fx, 0.0));
+        assert!(feq(((&q ^ &rand1 ^ !&q) - rand).norm_f() / rand.norm_f(), 0.0));
+
+        let r = &rand1.clone();
+        let mut rand1 = rand.clone();
+        rand1.it_hh();
+        assert!(feq((rand1 - r).norm_f() / r.norm_f(), 0.0));
+
+        let mut rand1 = rand.clone();
+        let q = rand1.iqtq_givens();
+        assert!(feq((q.square() - RMatrix::gen_eye(x, x)).norm_f() / fx, 0.0));
+        assert!(feq(((&q ^ &rand1 ^ !&q) - rand).norm_f() / rand.norm_f(), 0.0));
+
+        let r = &rand1.clone();
+        let mut rand1 = rand.clone();
+        rand1.it_givens();
+        assert!(feq((rand1 - r).norm_f() / r.norm_f(), 0.0));
+
+        let (_q, _t) = rand.qtq_lanczos();
+        //assert!(feq((q.square() - RMatrix::gen_eye(x, x)).norm_f() / fx, 0.0));
+        //assert!(feq(((&q ^ t ^ !&q) - rand).norm_f() / rand.norm_f(), 0.0));
     }
 
     #[test]
     fn qr_long() {
+        qr_test1(1, 100, 1.0, 100.0);
         qr_test1(50, 200, 50.0, 200.0);
     }
 
     #[test]
     fn qr_square() {
-        qr_test3(100, 100, 100.0, 100.0);
+        qr_test3(1, 1, 1.0, 1.0);
+        qr_test4(100, 100, 100.0, 100.0);
     }
 
     #[test]
     fn qr_tall() {
+        qr_test2(100, 1, 100.0, 1.0);
         qr_test2(200, 50, 200.0, 50.0);
     }
 
@@ -266,33 +309,28 @@ mod tests {
 
     #[test]
     fn svd_long() {
+        svd_test(1, 100, 1.0, 100.0);
         svd_test(50, 200, 50.0, 200.0);
     }
 
     #[test]
     fn svd_square() {
+        svd_test(1, 1, 1.0, 1.0);
         svd_test(100, 100, 100.0, 100.0);
     }
 
     #[test]
     fn svd_tall() {
+        svd_test(100, 1, 100.0, 1.0);
         svd_test(200, 50, 200.0, 50.0);
-    }
-
-    fn solve_tri_test1(rand: &RMatrix, b: &RMatrix, s: f64) {
-        let x = rand.solve_tri_lu(b);
-        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
-    }
-
-    fn solve_tri_test2(rand: &RMatrix, b: &RMatrix, s: f64) {
-        solve_tri_test1(rand, b, s);
-        let x = rand.solve_tri_chol(b);
-        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
     }
 
     fn solve_test1(rand: &RMatrix, b: &RMatrix, s: f64) {
         let _x = rand.solve_gdnr(b);
         //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let x = rand.solve_cgnr(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
 
         let x = rand.solve_lu(b);
         assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
@@ -331,13 +369,24 @@ mod tests {
         assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
     }
 
+    fn solve_tri_test1(rand: &RMatrix, b: &RMatrix, s: f64) {
+        let x = rand.solve_tri_lu(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+    }
+
+    fn solve_tri_test2(rand: &RMatrix, b: &RMatrix, s: f64) {
+        solve_tri_test1(rand, b, s);
+        let x = rand.solve_tri_chol(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+    }
+
     #[test]
     fn solve_pos_sym() {
         let n: usize = 20;
         let b = &RMatrix::gen_rand(n, 1);
         let rand = &RMatrix::gen_rand_ubi(n).square();
-        solve_tri_test2(rand, b, 100000.0);
-        solve_test3(rand, b, 100000.0);
+        solve_tri_test2(rand, b, 1000000.0);
+        solve_test3(rand, b, 1000000.0);
 
         let n: usize = 100;
         let b = &RMatrix::gen_rand(n, 1);
@@ -367,5 +416,21 @@ mod tests {
         solve_test1(rand, b, 100.0);
     }
 
+    fn lsq_test(x: usize, y: usize, fx: f64, fy: f64) {
+        let rand = &RMatrix::gen_rand(x, y);
+        let b = &RMatrix::gen_rand(x, 1);
+
+        let _x = rand.solve_gdnr(b);
+        //assert!(feq((!(!(rand ^ x) ^ rand) - !(!b ^ rand)).norm_2() / (!(!b ^ rand)).norm_2() / fx / fy, 0.0));
+
+        let x = rand.solve_cgnr(b);
+        assert!(feq((!(!(rand ^ x) ^ rand) - !(!b ^ rand)).norm_2() / (!(!b ^ rand)).norm_2() / fx / fy, 0.0));
+    }
+
+    #[test]
+    fn lsq() {
+        lsq_test(100, 1, 100.0, 1.0);
+        lsq_test(200, 50, 200.0, 50.0);
+    }
 }
 

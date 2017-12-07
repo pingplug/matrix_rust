@@ -465,6 +465,15 @@ impl RMatrix {
         ret
     }
 
+    // get the sum of all element in the matrix
+    pub fn sum(&self) -> f64 {
+        let mut ret: f64 = 0.0;
+        for i in 0..(self.x * self.y) {
+            ret += self.data[i];
+        }
+        ret
+    }
+
     // calculate the square of A
     // B = A ^ !A
     pub fn square(&self) -> RMatrix {
@@ -1177,6 +1186,9 @@ impl RMatrix {
     // A = Q ^ H ^ !Q
     pub fn iqhq_hh(&mut self) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.iqhq_hh(): square matrix only");
+        if self.x < 3 {
+            return RMatrix::gen_eye(self.x, self.y);
+        }
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
         let mut tmp: Vec<f64> = vec![0.0; self.x];
         let mut n2: f64;
@@ -1254,6 +1266,9 @@ impl RMatrix {
     // A = Q ^ H ^ !Q
     pub fn iqhq_givens(&mut self) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.iqhq_givens(): square matrix only");
+        if self.x < 3 {
+            return RMatrix::gen_eye(self.x, self.y);
+        }
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
         let mut x: f64;
         let mut y: f64;
@@ -1301,12 +1316,66 @@ impl RMatrix {
         }
     }
 
+    // Hessenberg matrix decomposition, Arnoldi
+    // A = Q ^ H ^ !Q
+    pub fn qhq_arnoldi(&self) -> (RMatrix, RMatrix) {
+        assert_eq!(self.x, self.y, "RMatrix.qhq_arnoldi(): square matrix only");
+        if self.x < 3 {
+            return (RMatrix::gen_eye(self.x, self.y), self.clone());
+        }
+        let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut ret_h_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut q: RMatrix;
+        let mut r = RMatrix::gen_rand(self.x, 1);
+        let mut b: f64 = r.norm_2();
+        for n in 0..self.y {
+            q = &r / b;
+            r = self ^ &q;
+            for i in 0..n {
+                for k in 0..self.x {
+                    ret_h_data[i * self.x + n] += ret_q_data[k * self.y + i] * r.data[k];
+                }
+                for k in 0..self.x {
+                    r.data[k] -= ret_h_data[i * self.y + n] * ret_q_data[k * self.y + i];
+                }
+            }
+            for k in 0..self.x {
+                ret_h_data[n * self.x + n] += q.data[k] * r.data[k];
+            }
+            for k in 0..self.x {
+                r.data[k] -= ret_h_data[n * self.y + n] * q.data[k];
+            }
+            b = r.norm_2();
+            assert_ne!(b, 0.0, "RMatrix.qhq_arnoldi(): break!");
+            // for Q
+            for i in 0..self.x {
+                ret_q_data[i * self.y + n] = q.data[i];
+            }
+            if (n + 1) < self.y {
+                ret_h_data[(n + 1) * self.y + n] = b;
+            }
+        }
+        (RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_q_data
+        },
+        RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_h_data
+        })
+    }
+
     // tridiagonal matrix decomposition, Householder
     // A must be (skew-)symmetric
     // in place
     // A = Q ^ T ^ !Q
     pub fn iqtq_hh(&mut self) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.iqtq_hh(): square matrix only");
+        if self.x < 3 {
+            return RMatrix::gen_eye(self.x, self.y);
+        }
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
         let mut tmp: Vec<f64> = vec![0.0; self.x];
         let mut n2: f64;
@@ -1404,6 +1473,9 @@ impl RMatrix {
     // A = Q ^ T ^ !Q
     pub fn iqtq_givens(&mut self) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.iqtq_givens(): square matrix only");
+        if self.x < 3 {
+            return RMatrix::gen_eye(self.x, self.y);
+        }
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
         let mut x: f64;
         let mut y: f64;
@@ -1466,6 +1538,77 @@ impl RMatrix {
             y: self.x,
             data: ret_q_data
         }
+    }
+
+    // tridiagonal matrix decomposition, Lanczos
+    // A must be (skew-)symmetric
+    // A = Q ^ T ^ !Q
+    pub fn qtq_lanczos(&self) -> (RMatrix, RMatrix) {
+        assert_eq!(self.x, self.y, "RMatrix.qtq_lanczos(): square matrix only");
+        if self.x < 3 {
+            return (RMatrix::gen_eye(self.x, self.y), self.clone());
+        }
+        let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut ret_t_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut q = RMatrix::gen_zeros(self.x, 1);
+        let mut r = RMatrix::gen_rand(self.x, 1);
+        let mut a: f64;
+        let mut b: f64 = r.norm_2();
+        let mut bq: RMatrix;
+        if self.data[1] * self.data[self.y] < 0.0 {
+            // skew symmetric
+            for n in 0..self.y {
+                bq = b * &q;
+                q = &r / b;
+                r = (self ^ &q) + &bq;
+                b = r.norm_2();
+                assert_ne!(b, 0.0, "RMatrix.qtq_lanczos(): break!");
+                // for Q
+                for i in 0..self.x {
+                    ret_q_data[i * self.y + n] = q.data[i];
+                }
+                ret_t_data[n * self.y + n] = 0.0;
+                if (n + 1) < self.y {
+                    ret_t_data[n * self.y + (n + 1)] =-b;
+                    ret_t_data[(n + 1) * self.y + n] = b;
+                }
+            }
+        } else if self.data[1] * self.data[self.y] > 0.0 {
+            // symmetric
+            for n in 0..self.y {
+                bq = b * &q;
+                q = &r / b;
+                r = (self ^ &q) - &bq;
+                a = 0.0;
+                for i in 0..self.x {
+                    a += q.data[i] * r.data[i];
+                }
+                for i in 0..self.x {
+                    r.data[i] -= a * q.data[i];
+                }
+                b = r.norm_2();
+                assert_ne!(b, 0.0, "RMatrix.qtq_lanczos(): break!");
+                // for Q
+                for i in 0..self.x {
+                    ret_q_data[i * self.y + n] = q.data[i];
+                }
+                ret_t_data[n * self.y + n] = a;
+                if (n + 1) < self.y {
+                    ret_t_data[n * self.y + (n + 1)] = b;
+                    ret_t_data[(n + 1) * self.y + n] = b;
+                }
+            }
+        }
+        (RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_q_data
+        },
+        RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_t_data
+        })
     }
 
     // up/dn bidiagonal matrix decomposition, Householder
@@ -1921,6 +2064,9 @@ impl RMatrix {
     // without Q
     pub fn ih_hh(&mut self) {
         assert_eq!(self.x, self.y, "RMatrix.ih_hh(): square matrix only");
+        if self.x < 3 {
+            return;
+        }
         let mut tmp: Vec<f64> = vec![0.0; self.x];
         let mut n2: f64;
         for n in 0..(self.y - 1) {
@@ -1979,6 +2125,9 @@ impl RMatrix {
     // without Q
     pub fn ih_givens(&mut self) {
         assert_eq!(self.x, self.y, "RMatrix.ih_givens(): square matrix only");
+        if self.x < 3 {
+            return;
+        }
         let mut x: f64;
         let mut y: f64;
         let mut c: f64;
@@ -2016,6 +2165,9 @@ impl RMatrix {
     // without Q
     pub fn it_hh(&mut self) {
         assert_eq!(self.x, self.y, "RMatrix.it_hh(): square matrix only");
+        if self.x < 3 {
+            return;
+        }
         let mut tmp: Vec<f64> = vec![0.0; self.x];
         let mut n2: f64;
         for n in 0..(self.y - 1) {
@@ -2094,6 +2246,9 @@ impl RMatrix {
     // without Q
     pub fn it_givens(&mut self) {
         assert_eq!(self.x, self.y, "RMatrix.it_givens(): square matrix only");
+        if self.x < 3 {
+            return;
+        }
         let mut x: f64;
         let mut y: f64;
         let mut c: f64;
@@ -2326,7 +2481,7 @@ impl RMatrix {
         let mut c: f64;
         let mut s: f64;
         if self.x < self.y {
-            for n in 0..(self.x - 1) {
+            for n in 0..self.x {
                 for j in (n + 1)..self.y {
                     if self.data[n * self.y + j] == 0.0 {
                         continue;
@@ -2363,7 +2518,7 @@ impl RMatrix {
                 }
             }
         } else {
-            for n in 0..(self.y - 1) {
+            for n in 0..self.y {
                 for i in (n + 1)..self.x {
                     if self.data[i * self.y + n] == 0.0 {
                         continue;
@@ -2678,12 +2833,11 @@ impl RMatrix {
     }
 
     // solve a linear system, gradient descent, normal equations
-    // A ^ x = b
+    // A ^ x = b, or min 2-norm of |A ^ x - b|
     pub fn solve_gdnr(&self, b: &RMatrix) -> RMatrix {
-        assert_eq!(self.x, self.y, "RMatrix.solve_gdnr(&RMatrix): square matrix only");
         assert_eq!(1, b.y, "RMatrix.solve_gdnr(&RMatrix): b must be vector");
         assert_eq!(self.x, b.x, "RMatrix.solve_gdnr(&RMatrix): matrix size mismatch");
-        let mut x = RMatrix::gen_zeros(b.x, 1);
+        let mut x = RMatrix::gen_zeros(self.y, 1);
         let mut r = !(!b ^ self);
         let mut delta: f64 = r.norm_2();
         let mut ar: RMatrix;
@@ -2694,13 +2848,15 @@ impl RMatrix {
             ar = self ^ &r;
             s1 = 0.0;
             s2 = 0.0;
-            for i in 0..self.x {
+            for i in 0..self.y {
                 s1 += r.data[i] * r.data[i];
+            }
+            for i in 0..self.x {
                 s2 += ar.data[i] * ar.data[i];
             }
             a = s1 / s2;
             x += a * &r;
-            r -= a * !(!&ar ^ self);
+            r -= a * !&mut (!&mut ar ^ self);
             delta = r.norm_2();
         }
         x
@@ -2741,6 +2897,48 @@ impl RMatrix {
             s2 = s1;
             s1 = 0.0;
             for i in 0..self.x {
+                s1 += r.data[i] * r.data[i];
+            }
+            b = s1 / s2;
+            p = &r + b * &p;
+            delta = r.norm_2();
+        }
+        x
+    }
+
+    // solve a linear system, conjugate gradient, normal equations
+    // A ^ x = b, or min 2-norm of |A ^ x - b|
+    pub fn solve_cgnr(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(1, b.y, "RMatrix.solve_cgnr(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_cgnr(&RMatrix): matrix size mismatch");
+        let mut x = RMatrix::gen_zeros(self.y, 1);
+        let mut r = !(!b ^ self);
+        let mut p = r.clone();
+        let mut delta: f64 = r.norm_2();
+        let mut ap: RMatrix;
+        let mut a: f64;
+        let mut b: f64;
+        let mut s1: f64 = 0.0;
+        let mut s2: f64;
+        let mut den: f64;
+        for i in 0..self.y {
+            s1 += r.data[i] * r.data[i];
+        }
+        while delta > 0.00000000000001 {
+            ap = self ^ &p;
+            den = 0.0;
+            for i in 0..self.x {
+                den += ap.data[i] * ap.data[i];
+            }
+            if den == 0.0 {
+                break;
+            }
+            a = s1 / den;
+            x += a * &p;
+            r -= a * !&mut (!&mut ap ^ self);
+            s2 = s1;
+            s1 = 0.0;
+            for i in 0..self.y {
                 s1 += r.data[i] * r.data[i];
             }
             b = s1 / s2;
@@ -2976,8 +3174,8 @@ impl RMatrix {
         let mut uu_data: Vec<f64> = vec![0.0; self.x];
         let mut ud_data: Vec<f64> = vec![0.0; self.x + 1];
         let mut y_data: Vec<f64> = vec![0.0; self.x + 1];
-        let mut q: RMatrix = RMatrix::gen_zeros(self.x, 1);
-        let mut r: RMatrix = b.clone();
+        let mut q = RMatrix::gen_zeros(self.x, 1);
+        let mut r = b.clone();
         let mut a: f64;
         let mut b: f64 = r.norm_2();
         let mut eps: f64;
@@ -3046,8 +3244,8 @@ impl RMatrix {
         let mut r1_data: Vec<f64> = vec![0.0; self.x];
         let mut r2_data: Vec<f64> = vec![0.0; self.x];
         let mut y_data: Vec<f64> = vec![0.0; self.x + 1];
-        let mut q: RMatrix = RMatrix::gen_zeros(self.x, 1);
-        let mut r: RMatrix = b.clone();
+        let mut q = RMatrix::gen_zeros(self.x, 1);
+        let mut r = b.clone();
         let mut a: f64;
         let mut b: f64 = r.norm_2();
         let mut eps: f64;
