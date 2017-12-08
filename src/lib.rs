@@ -296,7 +296,8 @@ mod tests {
         svd_test(200, 50, 200.0, 50.0);
     }
 
-    fn solve_test1(rand: &RMatrix, b: &RMatrix, s: f64) {
+    fn solve_test1(rand: &RMatrix, b: &RMatrix) {
+        let s = rand.cond() * b.norm_2();
         let _x = rand.solve_gdnr(b);
         //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
 
@@ -307,8 +308,11 @@ mod tests {
         assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
     }
 
-    fn solve_test2(rand: &RMatrix, b: &RMatrix, s: f64) {
-        solve_test1(rand, b, s);
+    fn solve_test2(rand: &RMatrix, b: &RMatrix) {
+        solve_test1(rand, b);
+        // FIXME?
+        // this will break when A's eigenvalue close to zero or A is indefinite
+        let _s = rand.cond() * b.norm_2();
         let _x = rand.solve_lanczos(b);
         //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
 
@@ -316,8 +320,9 @@ mod tests {
         //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
     }
 
-    fn solve_test3(rand: &RMatrix, b: &RMatrix, s: f64) {
-        solve_test2(rand, b, s);
+    fn solve_test3(rand: &RMatrix, b: &RMatrix) {
+        solve_test2(rand, b);
+        let s = rand.cond() * b.norm_2();
         let x = rand.solve_chol(b);
         assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
 
@@ -340,13 +345,15 @@ mod tests {
         assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
     }
 
-    fn solve_tri_test1(rand: &RMatrix, b: &RMatrix, s: f64) {
+    fn solve_tri_test1(rand: &RMatrix, b: &RMatrix) {
+        let s = rand.cond() * b.norm_2();
         let x = rand.solve_tri_lu(b);
         assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
     }
 
-    fn solve_tri_test2(rand: &RMatrix, b: &RMatrix, s: f64) {
-        solve_tri_test1(rand, b, s);
+    fn solve_tri_test2(rand: &RMatrix, b: &RMatrix) {
+        solve_tri_test1(rand, b);
+        let s = rand.cond() * b.norm_2();
         let x = rand.solve_tri_chol(b);
         assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
     }
@@ -356,13 +363,13 @@ mod tests {
         let n: usize = 20;
         let b = &RMatrix::gen_rand(n, 1);
         let rand = &RMatrix::gen_rand_ubi(n).square();
-        solve_tri_test2(rand, b, 1000000.0);
-        solve_test3(rand, b, 1000000.0);
+        solve_tri_test2(rand, b);
+        solve_test3(rand, b);
 
         let n: usize = 100;
         let b = &RMatrix::gen_rand(n, 1);
         let rand = &RMatrix::gen_rand_sym_eig(n, (RMatrix::gen_rand(n, 1) * 100.0 + 1.0).get_data());
-        solve_test3(rand, b, 100.0);
+        solve_test3(rand, b);
     }
 
     #[test]
@@ -371,7 +378,7 @@ mod tests {
         let b = &RMatrix::gen_rand(n, 1);
 
         let rand = &RMatrix::gen_rand_sym_eig(n, (RMatrix::gen_rand(n, 1) * 100.0 - 50.0).get_data());
-        solve_test2(rand, b, 100.0);
+        solve_test2(rand, b);
     }
 
     #[test]
@@ -380,28 +387,29 @@ mod tests {
         let b = &RMatrix::gen_rand(n, 1);
 
         let rand = &RMatrix::gen_rand_tri(n, n);
-        solve_tri_test1(rand, b, 100.0);
-        solve_test1(rand, b, 100.0);
+        solve_tri_test1(rand, b);
+        solve_test1(rand, b);
 
         let rand = &RMatrix::gen_rand(n, n);
-        solve_test1(rand, b, 100.0);
+        solve_test1(rand, b);
     }
 
-    fn lsq_test(x: usize, y: usize, fx: f64, fy: f64) {
+    fn lsq_test(x: usize, y: usize) {
         let rand = &RMatrix::gen_rand(x, y);
         let b = &RMatrix::gen_rand(x, 1);
+        let s = rand.cond() * b.norm_2();
 
         let _x = rand.solve_gdnr(b);
-        //assert!(feq((!(!(rand ^ x) ^ rand) - !(!b ^ rand)).norm_2() / (!(!b ^ rand)).norm_2() / fx / fy, 0.0));
+        //assert!(feq((!(!(rand ^ x) ^ rand) - !(!b ^ rand)).norm_2() / (!(!b ^ rand)).norm_2() / s, 0.0));
 
         let x = rand.solve_cgnr(b);
-        assert!(feq((!(!(rand ^ x) ^ rand) - !(!b ^ rand)).norm_2() / (!(!b ^ rand)).norm_2() / fx / fy, 0.0));
+        assert!(feq((!(!(rand ^ x) ^ rand) - !(!b ^ rand)).norm_2() / (!(!b ^ rand)).norm_2() / s, 0.0));
     }
 
     #[test]
     fn lsq() {
-        lsq_test(100, 1, 100.0, 1.0);
-        lsq_test(200, 50, 200.0, 50.0);
+        lsq_test(100, 1);
+        lsq_test(200, 50);
     }
 }
 

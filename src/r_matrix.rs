@@ -563,7 +563,7 @@ impl RMatrix {
     }
 
     // Cholesky decomposition
-    // A must be symmetric, positive-define
+    // A must be symmetric, positive-definite
     // in place
     // A = L ^ !L
     pub fn ichol(&mut self) {
@@ -586,7 +586,7 @@ impl RMatrix {
     }
 
     // Cholesky decomposition for tridiagonal matrix
-    // A must be symmetric, positive-define
+    // A must be symmetric, positive-definite
     // in place
     // A = L ^ !L
     pub fn ichol_tri(&mut self) {
@@ -609,15 +609,14 @@ impl RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.lu(): square matrix only");
         let mut ret_l_data: Vec<f64> = vec![0.0; self.x * self.y];
         for j in 0..self.y {
+            ret_l_data[j * self.y + j] = 1.0;
             for i in (j + 1)..self.x {
                 ret_l_data[i * self.y + j] = self.data[i * self.y + j] / self.data[j * self.y + j];
-                for k in j..self.y {
+                self.data[i * self.y + j] = 0.0;
+                for k in (j + 1)..self.y {
                     self.data[i * self.y + k] -= self.data[j * self.y + k] * ret_l_data[i * self.y + j];
                 }
             }
-        }
-        for i in 0..self.x {
-            ret_l_data[i * self.y + i] = 1.0;
         }
         RMatrix {
             x: self.x,
@@ -2720,7 +2719,7 @@ impl RMatrix {
     }
 
     // solve a linear system, Cholesky
-    // A must be symmetric, positive-define
+    // A must be symmetric, positive-definite
     // A ^ x = b
     pub fn solve_chol(&self, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_chol(&RMatrix): square matrix only");
@@ -2745,7 +2744,7 @@ impl RMatrix {
     }
 
     // solve a tridiagonal linear system, Cholesky
-    // A must be symmetric, positive-define
+    // A must be symmetric, positive-definite
     // A ^ x = b
     pub fn solve_tri_chol(&self, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_tri_chol(&RMatrix): square matrix only");
@@ -2814,7 +2813,7 @@ impl RMatrix {
     }
 
     // solve a linear system, gradient descent
-    // A must be symmetric, positive-define
+    // A must be symmetric, positive-definite
     // A ^ x = b
     pub fn solve_gd(&self, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_gd(&RMatrix): square matrix only");
@@ -2874,7 +2873,7 @@ impl RMatrix {
     }
 
     // solve a linear system, conjugate gradient
-    // A must be symmetric, positive-define
+    // A must be symmetric, positive-definite
     // A ^ x = b
     pub fn solve_cg(&self, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_cg(&RMatrix): square matrix only");
@@ -2960,7 +2959,7 @@ impl RMatrix {
     }
 
     // solve a linear system, preconditioned conjugate gradient, Jacobi
-    // A must be symmetric, positive-define
+    // A must be symmetric, positive-definite
     // A ^ x = b
     pub fn solve_pcg1(&self, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_pcg1(&RMatrix): square matrix only");
@@ -3007,7 +3006,7 @@ impl RMatrix {
     }
 
     // solve a linear system, preconditioned conjugate gradient, A3
-    // A must be symmetric, positive-define
+    // A must be symmetric, positive-definite
     // A ^ x = b
     pub fn solve_pcg3(&self, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_pcg3(&RMatrix): square matrix only");
@@ -3060,7 +3059,7 @@ impl RMatrix {
     }
 
     // solve a linear system, preconditioned conjugate gradient, A5
-    // A must be symmetric, positive-define
+    // A must be symmetric, positive-definite
     // A ^ x = b
     pub fn solve_pcg5(&self, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_pcg5(&RMatrix): square matrix only");
@@ -3113,7 +3112,7 @@ impl RMatrix {
     }
 
     // solve a linear system, preconditioned conjugate gradient, Ab
-    // A must be symmetric, positive-define
+    // A must be symmetric, positive-definite
     // A ^ x = b
     pub fn solve_pcgb(&self, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_pcgb(&RMatrix): square matrix only");
@@ -3217,9 +3216,9 @@ impl RMatrix {
             // solve submat(LU, l only)
             y_data[n + 1] -= y_data[n] * ll_data[n];
             eps = (b * y_data[n] / ud_data[n]).abs();
-            if eps < 0.00000000000001 {
+            if eps < 0.00000000000001 || (n + 1) == self.y {
                 // solve submat(LU, u)
-                for i in (1..n).rev() {
+                for i in (1..(n + 1)).rev() {
                     y_data[i] /= ud_data[i];
                     y_data[i - 1] -= y_data[i] * uu_data[i - 1];
                 }
@@ -3315,12 +3314,12 @@ impl RMatrix {
             q1_data[n + 1] = -x * s;
             // solve submat(LU, l only)
             eps = (q1_data[n + 1]).abs();
-            if eps < 0.00000000000001 {
+            if eps < 0.00000000000001 || (n + 1) == self.y {
                 // solve submat(QR, r)
-                for i in (0..n).rev() {
+                for i in (0..(n + 1)).rev() {
                     y_data[i] = q1_data[i] * y_data[0];
                 }
-                for i in (2..n).rev() {
+                for i in (2..(n + 1)).rev() {
                     y_data[i] /= rd_data[i];
                     y_data[i - 1] -= y_data[i] * r1_data[i - 1];
                     y_data[i - 2] -= y_data[i] * r2_data[i - 2];
