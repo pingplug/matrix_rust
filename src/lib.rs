@@ -133,6 +133,15 @@ mod tests {
     fn qr_test1(x: usize, y: usize, fx: f64, fy: f64) {
         let rand = &RMatrix::gen_rand(x, y);
 
+        let (q, r) = rand.qr_cgs();
+        // should fail if no fx
+        assert!(feq((q.square() - RMatrix::gen_eye(x, x)).norm_f() / (fx * fx), 0.0));
+        assert!(feq(((q ^ &r) - rand).norm_2() / rand.norm_2(), 0.0));
+
+        let (q, r) = rand.qr_mgs();
+        assert!(feq((q.square() - RMatrix::gen_eye(x, x)).norm_f() / fx, 0.0));
+        assert!(feq(((q ^ &r) - rand).norm_2() / rand.norm_2(), 0.0));
+
         let (q, r) = rand.qr_hh();
         assert!(feq((q.square() - RMatrix::gen_eye(x, x)).norm_f() / fx, 0.0));
         assert!(feq(((q ^ &r) - rand).norm_2() / rand.norm_2(), 0.0));

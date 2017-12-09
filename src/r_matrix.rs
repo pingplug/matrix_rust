@@ -161,7 +161,7 @@ impl RMatrix {
         RMatrix {
             x: vec.len(),
             y: 1,
-            data: vec.clone()
+            data: vec
         }
     }
 
@@ -171,7 +171,7 @@ impl RMatrix {
         RMatrix {
             x: m,
             y: n,
-            data: data.clone()
+            data: data
         }
     }
 
@@ -254,8 +254,46 @@ impl RMatrix {
         }
     }
 
+    // generate a matrix from given singular values
+    // B = R1 ^ A ^ R2, R1 & R2: (n - 1) Givens
+    pub fn gen_rand_sv(n: usize, sv: Vec<f64>) -> RMatrix {
+        assert_eq!(sv.len(), n, "RMatrix::gen_rand_eig(): vector size doesn't match");
+        let mut ret_data: Vec<f64> = vec![0.0; n * n];
+        let mut x: f64;
+        let mut y: f64;
+        let mut c: f64;
+        let mut s: f64;
+        for i in 0..n {
+            ret_data[i * n + i] = sv[i];
+        }
+        for k in 0..(n - 1) {
+            c = rand::thread_rng().gen_range(-1.0, 1.0);
+            s = (1.0 - c * c).sqrt();
+            for i in 0..n {
+                x = ret_data[i * n + k];
+                y = ret_data[i * n + k + 1];
+                ret_data[i * n + k] = x * c + y * s;
+                ret_data[i * n + k + 1] = -x * s + y * c;
+            }
+            c = rand::thread_rng().gen_range(-1.0, 1.0);
+            s = (1.0 - c * c).sqrt();
+            for j in 0..n {
+                x = ret_data[k * n + j];
+                y = ret_data[(k + 1) * n + j];
+                ret_data[k * n + j] = x * c + y * s;
+                ret_data[(k + 1) * n + j] = -x * s + y * c;
+            }
+        }
+        RMatrix {
+            x: n,
+            y: n,
+            data: ret_data
+        }
+    }
+
     // generate a matrix from given eigenvalues
-    // B = R1 ^ A ^ R2, R1 & R2: n Givens
+    // B will be symmetric
+    // B = R ^ A ^ !R, R: (n - 1) Givens
     pub fn gen_rand_eig(n: usize, eig: Vec<f64>) -> RMatrix {
         assert_eq!(eig.len(), n, "RMatrix::gen_rand_eig(): vector size doesn't match");
         let mut ret_data: Vec<f64> = vec![0.0; n * n];
@@ -275,8 +313,57 @@ impl RMatrix {
                 ret_data[i * n + k] = x * c + y * s;
                 ret_data[i * n + k + 1] = -x * s + y * c;
             }
+            for j in 0..n {
+                x = ret_data[k * n + j];
+                y = ret_data[(k + 1) * n + j];
+                ret_data[k * n + j] = x * c + y * s;
+                ret_data[(k + 1) * n + j] = -x * s + y * c;
+            }
+        }
+        // symmetric
+        for i in 0..n {
+            for j in 0..i {
+                ret_data[i * n + j] = (ret_data[i * n + j] + ret_data[j * n + i]) / 2.0;
+                ret_data[j * n + i] = ret_data[i * n + j];
+            }
+        }
+        RMatrix {
+            x: n,
+            y: n,
+            data: ret_data
+        }
+    }
+
+    // generate a matrix from given complex eigenvalues
+    // B = R ^ A ^ !R, R: (n - 1) Givens
+    pub fn gen_rand_ceig(n: usize, reig: Vec<f64>, ieig: Vec<f64>) -> RMatrix {
+        assert_eq!(reig.len(), n, "RMatrix::gen_rand_ceig(): vector size doesn't match");
+        assert_eq!(ieig.len(), n, "RMatrix::gen_rand_ceig(): vector size doesn't match");
+        let mut ret_data: Vec<f64> = vec![0.0; n * n];
+        let mut x: f64;
+        let mut y: f64;
+        let mut c: f64;
+        let mut s: f64;
+        for i in 0..(n / 2) {
+            let c = (reig[i * 2] * reig[i * 2 + 1]).sqrt();
+            let s = (ieig[i * 2] * ieig[i * 2 + 1]).sqrt();
+            ret_data[(i * 2) * n + (i * 2)] = c;
+            ret_data[(i * 2) * n + (i * 2 + 1)] = s;
+            ret_data[(i * 2 + 1) * n + (i * 2)] =-s;
+            ret_data[(i * 2 + 1) * n + (i * 2 + 1)] = c;
+        }
+        if n % 2 == 1 {
+            ret_data[(n - 1) * (n + 1)] = reig[n - 1];
+        }
+        for k in 0..(n - 1) {
             c = rand::thread_rng().gen_range(0.0, 1.0);
             s = (1.0 - c * c).sqrt();
+            for i in 0..n {
+                x = ret_data[i * n + k];
+                y = ret_data[i * n + k + 1];
+                ret_data[i * n + k] = x * c + y * s;
+                ret_data[i * n + k + 1] = -x * s + y * c;
+            }
             for j in 0..n {
                 x = ret_data[k * n + j];
                 y = ret_data[(k + 1) * n + j];
@@ -922,29 +1009,23 @@ impl RMatrix {
         assert!(self.x >= self.y, "RMatrix.cqr_cgs(): x >= y only");
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.y];
         let mut ret_r_data: Vec<f64> = vec![0.0; self.y * self.y];
-        let mut tmp: Vec<f64> = vec![0.0; self.x];
+        let mut tmp: RMatrix;
         let mut n2: f64;
         for j in 0..self.y {
-            for i in 0..self.x {
-                tmp[i] = self.data[i * self.y + j];
-            }
+            tmp = RMatrix::gen_vec(self.get_col(j));
             for k in 0..j {
                 for i in 0..self.x {
                     ret_r_data[k * self.y + j] += ret_q_data[i * self.y + k] * self.data[i * self.y + j];
                 }
                 for i in 0..self.x {
-                    tmp[i] -= ret_r_data[k * self.y + j] * ret_q_data[i * self.y + k];
+                    tmp.data[i] -= ret_r_data[k * self.y + j] * ret_q_data[i * self.y + k];
                 }
             }
-            n2 = 0.0;
-            for i in 0..self.x {
-                n2 += tmp[i] * tmp[i];
-            }
+            n2 = tmp.norm_2();
             assert_ne!(n2, 0.0, "RMatrix.cqr_cgs(): break!");
-            n2 = n2.sqrt();
             ret_r_data[j * self.y + j] = n2;
             for i in 0..self.x {
-                ret_q_data[i * self.y + j] = tmp[i] / n2;
+                ret_q_data[i * self.y + j] = tmp.data[i] / n2;
             }
         }
         (RMatrix {
@@ -959,35 +1040,84 @@ impl RMatrix {
         })
     }
 
+    // QR decomposition, classical Gram-Schmidt
+    // A = Q ^ R
+    pub fn qr_cgs(&self) -> (RMatrix, RMatrix) {
+        let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut ret_r_data: Vec<f64> = vec![0.0; self.x * self.y];
+        let mut tmp: RMatrix;
+        let mut t1: RMatrix;
+        let mut n2: f64;
+        for j in 0..self.x.min(self.y) {
+            tmp = RMatrix::gen_vec(self.get_col(j));
+            for k in 0..j {
+                for i in 0..self.x {
+                    ret_r_data[k * self.y + j] += ret_q_data[i * self.x + k] * self.data[i * self.y + j];
+                }
+                for i in 0..self.x {
+                    tmp.data[i] -= ret_r_data[k * self.y + j] * ret_q_data[i * self.x + k];
+                }
+            }
+            n2 = tmp.norm_2();
+            assert_ne!(n2, 0.0, "RMatrix.qr_cgs(): break!");
+            ret_r_data[j * self.y + j] = n2;
+            for i in 0..self.x {
+                ret_q_data[i * self.x + j] = tmp.data[i] / n2;
+            }
+        }
+        for j in self.x.min(self.y)..self.x {
+            tmp = RMatrix::gen_rand(self.x, 1);
+            t1 = tmp.clone();
+            for k in 0..j {
+                n2 = 0.0;
+                for i in 0..self.x {
+                    n2 += ret_q_data[i * self.x + k] * t1.data[i];
+                }
+                for i in 0..self.x {
+                    tmp.data[i] -= n2 * ret_q_data[i * self.x + k];
+                }
+            }
+            n2 = tmp.norm_2();
+            assert_ne!(n2, 0.0, "RMatrix.qr_cgs(): break!");
+            for i in 0..self.x {
+                ret_q_data[i * self.x + j] = tmp.data[i] / n2;
+            }
+        }
+        (RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_q_data
+        },
+        RMatrix {
+            x: self.x,
+            y: self.y,
+            data: ret_r_data
+        })
+    }
+
     // compact QR decomposition, modified Gram-Schmidt
     // A = Q ^ R
     pub fn cqr_mgs(&self) -> (RMatrix, RMatrix) {
         assert!(self.x >= self.y, "RMatrix.cqr_mgs(): x >= y only");
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.y];
         let mut ret_r_data: Vec<f64> = vec![0.0; self.y * self.y];
-        let mut tmp: Vec<f64> = vec![0.0; self.x];
+        let mut tmp: RMatrix;
         let mut n2: f64;
         for j in 0..self.y {
-            for i in 0..self.x {
-                tmp[i] = self.data[i * self.y + j];
-            }
+            tmp = RMatrix::gen_vec(self.get_col(j));
             for k in 0..j {
                 for i in 0..self.x {
-                    ret_r_data[k * self.y + j] += ret_q_data[i * self.y + k] * tmp[i];
+                    ret_r_data[k * self.y + j] += ret_q_data[i * self.y + k] * tmp.data[i];
                 }
                 for i in 0..self.x {
-                    tmp[i] -= ret_r_data[k * self.y + j] * ret_q_data[i * self.y + k];
+                    tmp.data[i] -= ret_r_data[k * self.y + j] * ret_q_data[i * self.y + k];
                 }
             }
-            n2 = 0.0;
-            for i in 0..self.x {
-                n2 += tmp[i] * tmp[i];
-            }
+            n2 = tmp.norm_2();
             assert_ne!(n2, 0.0, "RMatrix.cqr_mgs(): break!");
-            n2 = n2.sqrt();
             ret_r_data[j * self.y + j] = n2;
             for i in 0..self.x {
-                ret_q_data[i * self.y + j] = tmp[i] / n2;
+                ret_q_data[i * self.y + j] = tmp.data[i] / n2;
             }
         }
         (RMatrix {
@@ -997,6 +1127,59 @@ impl RMatrix {
         },
         RMatrix {
             x: self.y,
+            y: self.y,
+            data: ret_r_data
+        })
+    }
+
+    // QR decomposition, modified Gram-Schmidt
+    // A = Q ^ R
+    pub fn qr_mgs(&self) -> (RMatrix, RMatrix) {
+        let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut ret_r_data: Vec<f64> = vec![0.0; self.x * self.y];
+        let mut tmp: RMatrix;
+        let mut n2: f64;
+        for j in 0..self.x.min(self.y) {
+            tmp = RMatrix::gen_vec(self.get_col(j));
+            for k in 0..j {
+                for i in 0..self.x {
+                    ret_r_data[k * self.y + j] += ret_q_data[i * self.x + k] * tmp.data[i];
+                }
+                for i in 0..self.x {
+                    tmp.data[i] -= ret_r_data[k * self.y + j] * ret_q_data[i * self.x + k];
+                }
+            }
+            n2 = tmp.norm_2();
+            assert_ne!(n2, 0.0, "RMatrix.qr_mgs(): break!");
+            ret_r_data[j * self.y + j] = n2;
+            for i in 0..self.x {
+                ret_q_data[i * self.x + j] = tmp.data[i] / n2;
+            }
+        }
+        for j in self.x.min(self.y)..self.x {
+            tmp = RMatrix::gen_rand(self.x, 1);
+            for k in 0..j {
+                n2 = 0.0;
+                for i in 0..self.x {
+                    n2 += ret_q_data[i * self.x + k] * tmp.data[i];
+                }
+                for i in 0..self.x {
+                    tmp.data[i] -= n2 * ret_q_data[i * self.x + k];
+                }
+            }
+            n2 = tmp.norm_2();
+            assert_ne!(n2, 0.0, "RMatrix.qr_mgs(): break!");
+            for i in 0..self.x {
+                ret_q_data[i * self.x + j] = tmp.data[i] / n2;
+            }
+        }
+        (RMatrix {
+            x: self.x,
+            y: self.x,
+            data: ret_q_data
+        },
+        RMatrix {
+            x: self.x,
             y: self.y,
             data: ret_r_data
         })
