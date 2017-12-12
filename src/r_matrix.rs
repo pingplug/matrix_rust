@@ -257,7 +257,7 @@ impl RMatrix {
     // generate a matrix from given singular values
     // B = R1 ^ A ^ R2, R1 & R2: (n - 1) Givens
     pub fn gen_rand_sv(n: usize, sv: Vec<f64>) -> RMatrix {
-        assert_eq!(sv.len(), n, "RMatrix::gen_rand_eig(): vector size doesn't match");
+        assert_eq!(sv.len(), n, "RMatrix::gen_rand_sv(): vector size doesn't match");
         let mut ret_data: Vec<f64> = vec![0.0; n * n];
         let mut x: f64;
         let mut y: f64;
@@ -433,48 +433,6 @@ impl RMatrix {
             ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
         }
         ret_data[n * n - 1] = rand::thread_rng().gen_range(0.0, 1.0);
-        RMatrix {
-            x: n,
-            y: n,
-            data: ret_data
-        }
-    }
-
-    // generate a symmetric matrix from given eigenvalues
-    // B = R ^ A ^ !R, R: n Givens
-    pub fn gen_rand_sym_eig(n: usize, eig: Vec<f64>) -> RMatrix {
-        assert_eq!(eig.len(), n, "RMatrix::gen_rand_sym_eig(): vector size doesn't match");
-        let mut ret_data: Vec<f64> = vec![0.0; n * n];
-        let mut x: f64;
-        let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
-        for i in 0..n {
-            ret_data[i * n + i] = eig[i];
-        }
-        for k in 0..(n - 1) {
-            c = rand::thread_rng().gen_range(0.0, 1.0);
-            s = (1.0 - c * c).sqrt();
-            for i in 0..n {
-                x = ret_data[i * n + k];
-                y = ret_data[i * n + k + 1];
-                ret_data[i * n + k] = x * c + y * s;
-                ret_data[i * n + k + 1] = -x * s + y * c;
-            }
-            for j in 0..n {
-                x = ret_data[k * n + j];
-                y = ret_data[(k + 1) * n + j];
-                ret_data[k * n + j] = x * c + y * s;
-                ret_data[(k + 1) * n + j] = -x * s + y * c;
-            }
-        }
-        // symmetric
-        for i in 0..(n - 1) {
-            for j in 0..i {
-                ret_data[i * n + j] = (ret_data[i * n + j] + ret_data[j * n + i]) / 2.0;
-                ret_data[j * n + i] = ret_data[i * n + j];
-            }
-        }
         RMatrix {
             x: n,
             y: n,
@@ -1483,7 +1441,7 @@ impl RMatrix {
                 for k in n..self.y {
                     x = self.data[(n + 1) * self.y + k];
                     y = self.data[i * self.y + k];
-                    self.data[(n + 1) * self.y + k] =  x * c + y * s;
+                    self.data[(n + 1) * self.y + k] = x * c + y * s;
                     self.data[i * self.y + k] = -x * s + y * c;
                 }
                 self.data[i * self.y + n] = 0.0;
@@ -1491,13 +1449,13 @@ impl RMatrix {
                 for k in 0..(i + 1) {
                     x = ret_q_data[k * self.x + n + 1];
                     y = ret_q_data[k * self.x + i];
-                    ret_q_data[k * self.x + n + 1] =  x * c + y * s;
+                    ret_q_data[k * self.x + n + 1] = x * c + y * s;
                     ret_q_data[k * self.x + i] = -x * s + y * c;
                 }
                 for k in 0..self.x {
                     x = self.data[k * self.y + n + 1];
                     y = self.data[k * self.y + i];
-                    self.data[k * self.y + n + 1] =  x * c + y * s;
+                    self.data[k * self.y + n + 1] = x * c + y * s;
                     self.data[k * self.y + i] = -x * s + y * c;
                 }
             }
@@ -1690,7 +1648,7 @@ impl RMatrix {
                 for k in n..self.y {
                     x = self.data[(n + 1) * self.y + k];
                     y = self.data[i * self.y + k];
-                    self.data[(n + 1) * self.y + k] =  x * c + y * s;
+                    self.data[(n + 1) * self.y + k] = x * c + y * s;
                     self.data[i * self.y + k] = -x * s + y * c;
                 }
                 self.data[i * self.y + n] = 0.0;
@@ -1698,13 +1656,13 @@ impl RMatrix {
                 for k in 0..(i + 1) {
                     x = ret_q_data[k * self.x + n + 1];
                     y = ret_q_data[k * self.x + i];
-                    ret_q_data[k * self.x + n + 1] =  x * c + y * s;
+                    ret_q_data[k * self.x + n + 1] = x * c + y * s;
                     ret_q_data[k * self.x + i] = -x * s + y * c;
                 }
                 for k in n..self.x {
                     x = self.data[k * self.y + n + 1];
                     y = self.data[k * self.y + i];
-                    self.data[k * self.y + n + 1] =  x * c + y * s;
+                    self.data[k * self.y + n + 1] = x * c + y * s;
                     self.data[k * self.y + i] = -x * s + y * c;
                 }
                 self.data[n * self.y + i] = 0.0;
@@ -2091,7 +2049,7 @@ impl RMatrix {
                     for k in n..self.y {
                         x = self.data[(n + 1) * self.y + k];
                         y = self.data[i * self.y + k];
-                        self.data[(n + 1) * self.y + k] =  x * c + y * s;
+                        self.data[(n + 1) * self.y + k] = x * c + y * s;
                         self.data[i * self.y + k] = -x * s + y * c;
                     }
                     self.data[i * self.y + n] = 0.0;
@@ -2099,7 +2057,7 @@ impl RMatrix {
                     for k in 0..(i + 1) {
                         x = ret_p_data[k * self.x + n + 1];
                         y = ret_p_data[k * self.x + i];
-                        ret_p_data[k * self.x + n + 1] =  x * c + y * s;
+                        ret_p_data[k * self.x + n + 1] = x * c + y * s;
                         ret_p_data[k * self.x + i] = -x * s + y * c;
                     }
                 }
@@ -2142,7 +2100,7 @@ impl RMatrix {
                     for k in n..self.x {
                         x = self.data[k * self.y + n + 1];
                         y = self.data[k * self.y + j];
-                        self.data[k * self.y + n + 1] =  x * c + y * s;
+                        self.data[k * self.y + n + 1] = x * c + y * s;
                         self.data[k * self.y + j] = -x * s + y * c;
                     }
                     self.data[n * self.y + j] = 0.0;
@@ -2150,7 +2108,7 @@ impl RMatrix {
                     for k in 0..(j + 1) {
                         x = ret_q_data[(n + 1) * self.y + k];
                         y = ret_q_data[j * self.y + k];
-                        ret_q_data[(n + 1) * self.y + k] =  x * c + y * s;
+                        ret_q_data[(n + 1) * self.y + k] = x * c + y * s;
                         ret_q_data[j * self.y + k] = -x * s + y * c;
                     }
                 }
@@ -2191,13 +2149,13 @@ impl RMatrix {
             self.data[i * self.y + i + 1] = 0.0;
             x = self.data[(i + 1) * self.y + i];
             y = self.data[(i + 1) * self.y + i + 1];
-            self.data[(i + 1) * self.y + i] =  x * c + y * s;
+            self.data[(i + 1) * self.y + i] = x * c + y * s;
             self.data[(i + 1) * self.y + i + 1] = -x * s + y * c;
             // apply to Q
             for k in 0..self.y {
                 x = q.data[i * self.y + k];
                 y = q.data[(i + 1) * self.y + k];
-                q.data[i * self.y + k] =  x * c + y * s;
+                q.data[i * self.y + k] = x * c + y * s;
                 q.data[(i + 1) * self.y + k] = -x * s + y * c;
             }
         }
@@ -2226,13 +2184,13 @@ impl RMatrix {
             self.data[(i + 1) * self.y + i] = 0.0;
             x = self.data[i * self.y + i + 1];
             y = self.data[(i + 1) * self.y + i + 1];
-            self.data[i * self.y + i + 1] =  x * c + y * s;
+            self.data[i * self.y + i + 1] = x * c + y * s;
             self.data[(i + 1) * self.y + i + 1] = -x * s + y * c;
             // apply to P
             for k in 0..self.x {
                 x = p.data[k * self.x + i];
                 y = p.data[k * self.x + i + 1];
-                p.data[k * self.x + i] =  x * c + y * s;
+                p.data[k * self.x + i] = x * c + y * s;
                 p.data[k * self.x + i + 1] = -x * s + y * c;
             }
         }
@@ -2338,14 +2296,14 @@ impl RMatrix {
                 for k in n..self.y {
                     x = self.data[(n + 1) * self.y + k];
                     y = self.data[i * self.y + k];
-                    self.data[(n + 1) * self.y + k] =  x * c + y * s;
+                    self.data[(n + 1) * self.y + k] = x * c + y * s;
                     self.data[i * self.y + k] = -x * s + y * c;
                 }
                 self.data[i * self.y + n] = 0.0;
                 for k in 0..self.x {
                     x = self.data[k * self.y + n + 1];
                     y = self.data[k * self.y + i];
-                    self.data[k * self.y + n + 1] =  x * c + y * s;
+                    self.data[k * self.y + n + 1] = x * c + y * s;
                     self.data[k * self.y + i] = -x * s + y * c;
                 }
             }
@@ -2459,14 +2417,14 @@ impl RMatrix {
                 for k in n..self.y {
                     x = self.data[(n + 1) * self.y + k];
                     y = self.data[i * self.y + k];
-                    self.data[(n + 1) * self.y + k] =  x * c + y * s;
+                    self.data[(n + 1) * self.y + k] = x * c + y * s;
                     self.data[i * self.y + k] = -x * s + y * c;
                 }
                 self.data[i * self.y + n] = 0.0;
                 for k in n..self.x {
                     x = self.data[k * self.y + n + 1];
                     y = self.data[k * self.y + i];
-                    self.data[k * self.y + n + 1] =  x * c + y * s;
+                    self.data[k * self.y + n + 1] = x * c + y * s;
                     self.data[k * self.y + i] = -x * s + y * c;
                 }
                 self.data[n * self.y + i] = 0.0;
@@ -2704,7 +2662,7 @@ impl RMatrix {
                     for k in n..self.y {
                         x = self.data[(n + 1) * self.y + k];
                         y = self.data[i * self.y + k];
-                        self.data[(n + 1) * self.y + k] =  x * c + y * s;
+                        self.data[(n + 1) * self.y + k] = x * c + y * s;
                         self.data[i * self.y + k] = -x * s + y * c;
                     }
                     self.data[i * self.y + n] = 0.0;
@@ -2741,7 +2699,7 @@ impl RMatrix {
                     for k in n..self.x {
                         x = self.data[k * self.y + n + 1];
                         y = self.data[k * self.y + j];
-                        self.data[k * self.y + n + 1] =  x * c + y * s;
+                        self.data[k * self.y + n + 1] = x * c + y * s;
                         self.data[k * self.y + j] = -x * s + y * c;
                     }
                     self.data[n * self.y + j] = 0.0;
@@ -2773,7 +2731,7 @@ impl RMatrix {
             self.data[i * self.y + i + 1] = 0.0;
             x = self.data[(i + 1) * self.y + i];
             y = self.data[(i + 1) * self.y + i + 1];
-            self.data[(i + 1) * self.y + i] =  x * c + y * s;
+            self.data[(i + 1) * self.y + i] = x * c + y * s;
             self.data[(i + 1) * self.y + i + 1] = -x * s + y * c;
         }
     }
@@ -2801,7 +2759,7 @@ impl RMatrix {
             self.data[(i + 1) * self.y + i] = 0.0;
             x = self.data[i * self.y + i + 1];
             y = self.data[(i + 1) * self.y + i + 1];
-            self.data[i * self.y + i + 1] =  x * c + y * s;
+            self.data[i * self.y + i + 1] = x * c + y * s;
             self.data[(i + 1) * self.y + i + 1] = -x * s + y * c;
         }
     }
@@ -3432,7 +3390,6 @@ impl RMatrix {
         assert_eq!(1, b.y, "RMatrix.solve_minres(&RMatrix): b must be vector");
         assert_eq!(self.x, b.x, "RMatrix.solve_minres(&RMatrix): matrix size mismatch");
         let mut q_data: Vec<f64> = vec![0.0; (self.x + 1) * self.x];
-        let mut q1_data: Vec<f64> = vec![0.0; self.x + 1];
         let mut rd_data: Vec<f64> = vec![0.0; self.x];
         let mut r1_data: Vec<f64> = vec![0.0; self.x];
         let mut r2_data: Vec<f64> = vec![0.0; self.x];
@@ -3447,7 +3404,6 @@ impl RMatrix {
         let mut c: f64 = 0.0;
         let mut s: f64 = 0.0;
         y_data[0] = b;
-        q1_data[0] = 1.0;
         let mut bq = b * &q;
         q = &r / b;
         for i in 0..self.x {
@@ -3478,7 +3434,7 @@ impl RMatrix {
             } else {
                 x = r1_data[n - 1];
                 // y = a
-                r1_data[n - 1] =  x * c + a * s;
+                r1_data[n - 1] = x * c + a * s;
                 rd_data[n] = -x * s + a * c;
                 // x = 0.0
                 // y = b
@@ -3489,19 +3445,16 @@ impl RMatrix {
             y = b;
             c = x / (x * x + y * y).sqrt();
             s = y / (x * x + y * y).sqrt();
-            rd_data[n] =  x * c + y * s;
+            rd_data[n] = x * c + y * s;
             // Q
-            x = q1_data[n];
+            x = y_data[n];
             // y = 0.0
-            q1_data[n] =  x * c;
-            q1_data[n + 1] = -x * s;
+            y_data[n] =  x * c;
+            y_data[n + 1] = -x * s;
             // solve submat(LU, l only)
-            eps = (q1_data[n + 1]).abs();
+            eps = (y_data[n + 1]).abs();
             if eps < 0.00000000000001 || (n + 1) == self.y {
                 // solve submat(QR, r)
-                for i in (0..(n + 1)).rev() {
-                    y_data[i] = q1_data[i] * y_data[0];
-                }
                 for i in (2..(n + 1)).rev() {
                     y_data[i] /= rd_data[i];
                     y_data[i - 1] -= y_data[i] * r1_data[i - 1];

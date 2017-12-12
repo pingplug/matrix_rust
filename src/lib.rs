@@ -377,7 +377,7 @@ mod tests {
 
         let n: usize = 100;
         let b = &RMatrix::gen_rand(n, 1);
-        let rand = &RMatrix::gen_rand_sym_eig(n, (RMatrix::gen_rand(n, 1) * 100.0 + 1.0).get_data());
+        let rand = &RMatrix::gen_rand_eig(n, (RMatrix::gen_rand(n, 1) * 100.0 + 1.0).get_data());
         solve_test3(rand, b);
     }
 
@@ -386,7 +386,7 @@ mod tests {
         let n: usize = 100;
         let b = &RMatrix::gen_rand(n, 1);
 
-        let rand = &RMatrix::gen_rand_sym_eig(n, (RMatrix::gen_rand(n, 1) * 100.0 - 50.0).get_data());
+        let rand = &RMatrix::gen_rand_eig(n, (RMatrix::gen_rand(n, 1) * 100.0 - 50.0).get_data());
         solve_test2(rand, b);
     }
 
