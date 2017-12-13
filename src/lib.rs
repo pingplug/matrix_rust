@@ -310,6 +310,9 @@ mod tests {
         let _x = rand.solve_gdnr(b);
         //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
 
+        let x = rand.solve_bicg(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
         let x = rand.solve_cgnr(b);
         assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
 
@@ -345,12 +348,6 @@ mod tests {
         assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
 
         let x = rand.solve_pcg3(b);
-        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
-
-        let x = rand.solve_pcg5(b);
-        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
-
-        let x = rand.solve_pcgb(b);
         assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
     }
 
@@ -412,6 +409,9 @@ mod tests {
         //assert!(feq((!(!(rand ^ x) ^ rand) - !(!b ^ rand)).norm_2() / (!(!b ^ rand)).norm_2() / s, 0.0));
 
         let x = rand.solve_cgnr(b);
+        assert!(feq((!(!(rand ^ x) ^ rand) - !(!b ^ rand)).norm_2() / (!(!b ^ rand)).norm_2() / s, 0.0));
+
+        let x = rand.lsq_qr(b);
         assert!(feq((!(!(rand ^ x) ^ rand) - !(!b ^ rand)).norm_2() / (!(!b ^ rand)).norm_2() / s, 0.0));
     }
 

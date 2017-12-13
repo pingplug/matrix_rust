@@ -70,6 +70,17 @@ macro_rules! impl_fn_i_2 {
     }
 }
 
+// helper function
+// for Givens rotation
+#[inline]
+fn givens(x: f64, y: f64) -> (f64, f64) {
+    // c = x / (x * x + y * y).sqrt()
+    // s = y / (x * x + y * y).sqrt()
+    let c: f64 = x / x.hypot(y);
+    let s: f64 = y / x.hypot(y);
+    (c, s)
+}
+
 // real(float64) matrix
 pub struct RMatrix {
     // x: rows
@@ -305,7 +316,7 @@ impl RMatrix {
             ret_data[i * n + i] = eig[i];
         }
         for k in 0..(n - 1) {
-            c = rand::thread_rng().gen_range(0.0, 1.0);
+            c = rand::thread_rng().gen_range(-1.0, 1.0);
             s = (1.0 - c * c).sqrt();
             for i in 0..n {
                 x = ret_data[i * n + k];
@@ -356,7 +367,7 @@ impl RMatrix {
             ret_data[(n - 1) * (n + 1)] = reig[n - 1];
         }
         for k in 0..(n - 1) {
-            c = rand::thread_rng().gen_range(0.0, 1.0);
+            c = rand::thread_rng().gen_range(-1.0, 1.0);
             s = (1.0 - c * c).sqrt();
             for i in 0..n {
                 x = ret_data[i * n + k];
@@ -1265,8 +1276,6 @@ impl RMatrix {
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         for i in 0..self.x {
             ret_q_data[i * self.x + i] = 1.0;
         }
@@ -1278,8 +1287,7 @@ impl RMatrix {
                 // Givens
                 x = self.data[j * self.y + j];
                 y = self.data[i * self.y + j];
-                c = x / (x * x + y * y).sqrt();
-                s = y / (x * x + y * y).sqrt();
+                let (c, s) = givens(x, y);
                 for k in j..self.y {
                     x = self.data[j * self.y + k];
                     y = self.data[i * self.y + k];
@@ -1309,8 +1317,6 @@ impl RMatrix {
     pub fn ir_givens(&mut self) {
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         for i in 0..self.x {
             for j in 0..i.min(self.y) {
                 if self.data[i * self.y + j] == 0.0 {
@@ -1319,8 +1325,7 @@ impl RMatrix {
                 // Givens
                 x = self.data[j * self.y + j];
                 y = self.data[i * self.y + j];
-                c = x / (x * x + y * y).sqrt();
-                s = y / (x * x + y * y).sqrt();
+                let (c, s) = givens(x, y);
                 for k in j..self.y {
                     x = self.data[j * self.y + k];
                     y = self.data[i * self.y + k];
@@ -1423,8 +1428,6 @@ impl RMatrix {
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         for i in 0..self.x {
             ret_q_data[i * self.x + i] = 1.0;
         }
@@ -1436,8 +1439,7 @@ impl RMatrix {
                 // Givens
                 x = self.data[(n + 1) * self.y + n];
                 y = self.data[i * self.y + n];
-                c = x / (x * x + y * y).sqrt();
-                s = y / (x * x + y * y).sqrt();
+                let (c, s) = givens(x, y);
                 for k in n..self.y {
                     x = self.data[(n + 1) * self.y + k];
                     y = self.data[i * self.y + k];
@@ -1630,8 +1632,6 @@ impl RMatrix {
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         for i in 0..self.x {
             ret_q_data[i * self.x + i] = 1.0;
         }
@@ -1643,8 +1643,7 @@ impl RMatrix {
                 // Givens
                 x = self.data[(n + 1) * self.y + n];
                 y = self.data[i * self.y + n];
-                c = x / (x * x + y * y).sqrt();
-                s = y / (x * x + y * y).sqrt();
+                let (c, s) = givens(x, y);
                 for k in n..self.y {
                     x = self.data[(n + 1) * self.y + k];
                     y = self.data[i * self.y + k];
@@ -2003,8 +2002,6 @@ impl RMatrix {
         let mut ret_q_data: Vec<f64> = vec![0.0; self.y * self.y];
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         for i in 0..self.x {
             ret_p_data[i * self.x + i] = 1.0;
         }
@@ -2020,8 +2017,7 @@ impl RMatrix {
                     // Givens
                     x = self.data[n * self.y + n];
                     y = self.data[n * self.y + j];
-                    c = x / (x * x + y * y).sqrt();
-                    s = y / (x * x + y * y).sqrt();
+                    let (c, s) = givens(x, y);
                     for k in n..self.x {
                         x = self.data[k * self.y + n];
                         y = self.data[k * self.y + j];
@@ -2044,8 +2040,7 @@ impl RMatrix {
                     // Givens
                     x = self.data[(n + 1) * self.y + n];
                     y = self.data[i * self.y + n];
-                    c = x / (x * x + y * y).sqrt();
-                    s = y / (x * x + y * y).sqrt();
+                    let (c, s) = givens(x, y);
                     for k in n..self.y {
                         x = self.data[(n + 1) * self.y + k];
                         y = self.data[i * self.y + k];
@@ -2071,8 +2066,7 @@ impl RMatrix {
                     // Givens
                     x = self.data[n * self.y + n];
                     y = self.data[i * self.y + n];
-                    c = x / (x * x + y * y).sqrt();
-                    s = y / (x * x + y * y).sqrt();
+                    let (c, s) = givens(x, y);
                     for k in n..self.y {
                         x = self.data[n * self.y + k];
                         y = self.data[i * self.y + k];
@@ -2095,8 +2089,7 @@ impl RMatrix {
                     // Givens
                     x = self.data[n * self.y + n + 1];
                     y = self.data[n * self.y + j];
-                    c = x / (x * x + y * y).sqrt();
-                    s = y / (x * x + y * y).sqrt();
+                    let (c, s) = givens(x, y);
                     for k in n..self.x {
                         x = self.data[k * self.y + n + 1];
                         y = self.data[k * self.y + j];
@@ -2133,8 +2126,6 @@ impl RMatrix {
     fn ibqr_givens(&mut self, q: &mut RMatrix) {
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         let n: usize = self.x.min(self.y);
         for i in 0..(n - 1) {
             if self.data[i * self.y + i + 1] == 0.0 {
@@ -2143,8 +2134,7 @@ impl RMatrix {
             // Givens
             x = self.data[i * self.y + i];
             y = self.data[i * self.y + i + 1];
-            c = x / (x * x + y * y).sqrt();
-            s = y / (x * x + y * y).sqrt();
+            let (c, s) = givens(x, y);
             self.data[i * self.y + i] =  x * c + y * s;
             self.data[i * self.y + i + 1] = 0.0;
             x = self.data[(i + 1) * self.y + i];
@@ -2168,8 +2158,6 @@ impl RMatrix {
     fn ibpr_givens(&mut self, p: &mut RMatrix) {
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         let n: usize = self.x.min(self.y);
         for i in 0..(n - 1) {
             if self.data[(i + 1) * self.y + i] == 0.0 {
@@ -2178,8 +2166,7 @@ impl RMatrix {
             // Givens
             x = self.data[i * self.y + i];
             y = self.data[(i + 1) * self.y + i];
-            c = x / (x * x + y * y).sqrt();
-            s = y / (x * x + y * y).sqrt();
+            let (c, s) = givens(x, y);
             self.data[i * self.y + i] =  x * c + y * s;
             self.data[(i + 1) * self.y + i] = 0.0;
             x = self.data[i * self.y + i + 1];
@@ -2281,8 +2268,6 @@ impl RMatrix {
         }
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         for n in 0..(self.y - 1) {
             for i in (n + 2)..self.x {
                 if self.data[i * self.y + n] == 0.0 {
@@ -2291,8 +2276,7 @@ impl RMatrix {
                 // Givens
                 x = self.data[(n + 1) * self.y + n];
                 y = self.data[i * self.y + n];
-                c = x / (x * x + y * y).sqrt();
-                s = y / (x * x + y * y).sqrt();
+                let (c, s) = givens(x, y);
                 for k in n..self.y {
                     x = self.data[(n + 1) * self.y + k];
                     y = self.data[i * self.y + k];
@@ -2402,8 +2386,6 @@ impl RMatrix {
         }
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         for n in 0..(self.y - 1) {
             for i in (n + 2)..self.x {
                 if self.data[i * self.y + n] == 0.0 {
@@ -2412,8 +2394,7 @@ impl RMatrix {
                 // Givens
                 x = self.data[(n + 1) * self.y + n];
                 y = self.data[i * self.y + n];
-                c = x / (x * x + y * y).sqrt();
-                s = y / (x * x + y * y).sqrt();
+                let (c, s) = givens(x, y);
                 for k in n..self.y {
                     x = self.data[(n + 1) * self.y + k];
                     y = self.data[i * self.y + k];
@@ -2629,8 +2610,6 @@ impl RMatrix {
     pub fn ib_givens(&mut self) {
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         if self.x < self.y {
             for n in 0..self.x {
                 for j in (n + 1)..self.y {
@@ -2640,8 +2619,7 @@ impl RMatrix {
                     // Givens
                     x = self.data[n * self.y + n];
                     y = self.data[n * self.y + j];
-                    c = x / (x * x + y * y).sqrt();
-                    s = y / (x * x + y * y).sqrt();
+                    let (c, s) = givens(x, y);
                     for k in n..self.x {
                         x = self.data[k * self.y + n];
                         y = self.data[k * self.y + j];
@@ -2657,8 +2635,7 @@ impl RMatrix {
                     // Givens
                     x = self.data[(n + 1) * self.y + n];
                     y = self.data[i * self.y + n];
-                    c = x / (x * x + y * y).sqrt();
-                    s = y / (x * x + y * y).sqrt();
+                    let (c, s) = givens(x, y);
                     for k in n..self.y {
                         x = self.data[(n + 1) * self.y + k];
                         y = self.data[i * self.y + k];
@@ -2677,8 +2654,7 @@ impl RMatrix {
                     // Givens
                     x = self.data[n * self.y + n];
                     y = self.data[i * self.y + n];
-                    c = x / (x * x + y * y).sqrt();
-                    s = y / (x * x + y * y).sqrt();
+                    let (c, s) = givens(x, y);
                     for k in n..self.y {
                         x = self.data[n * self.y + k];
                         y = self.data[i * self.y + k];
@@ -2694,8 +2670,7 @@ impl RMatrix {
                     // Givens
                     x = self.data[n * self.y + n + 1];
                     y = self.data[n * self.y + j];
-                    c = x / (x * x + y * y).sqrt();
-                    s = y / (x * x + y * y).sqrt();
+                    let (c, s) = givens(x, y);
                     for k in n..self.x {
                         x = self.data[k * self.y + n + 1];
                         y = self.data[k * self.y + j];
@@ -2715,8 +2690,6 @@ impl RMatrix {
     fn iubr_givens(&mut self) {
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         let n: usize = self.x.min(self.y);
         for i in 0..(n - 1) {
             if self.data[i * self.y + i + 1] == 0.0 {
@@ -2725,8 +2698,7 @@ impl RMatrix {
             // Givens
             x = self.data[i * self.y + i];
             y = self.data[i * self.y + i + 1];
-            c = x / (x * x + y * y).sqrt();
-            s = y / (x * x + y * y).sqrt();
+            let (c, s) = givens(x, y);
             self.data[i * self.y + i] =  x * c + y * s;
             self.data[i * self.y + i + 1] = 0.0;
             x = self.data[(i + 1) * self.y + i];
@@ -2743,8 +2715,6 @@ impl RMatrix {
     fn idbr_givens(&mut self) {
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64;
-        let mut s: f64;
         let n: usize = self.x.min(self.y);
         for i in 0..(n - 1) {
             if self.data[(i + 1) * self.y + i] == 0.0 {
@@ -2753,8 +2723,7 @@ impl RMatrix {
             // Givens
             x = self.data[i * self.y + i];
             y = self.data[(i + 1) * self.y + i];
-            c = x / (x * x + y * y).sqrt();
-            s = y / (x * x + y * y).sqrt();
+            let (c, s) = givens(x, y);
             self.data[i * self.y + i] =  x * c + y * s;
             self.data[(i + 1) * self.y + i] = 0.0;
             x = self.data[i * self.y + i + 1];
@@ -3057,6 +3026,114 @@ impl RMatrix {
         x
     }
 
+    // solve a linear system, biconjugate gradient
+    // A ^ x = b
+    pub fn solve_bicg(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_bicg(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_bicg(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_bicg(&RMatrix): matrix size mismatch");
+        let mut x1 = RMatrix::gen_zeros(b.x, 1);
+        let mut x2 = RMatrix::gen_zeros(1, b.x);
+        let mut r1 = b.clone();
+        let mut r2 = !b;
+        let mut p1 = r1.clone();
+        let mut p2 = r2.clone();
+        let mut delta: f64 = r1.norm_2();
+        let mut ap: RMatrix;
+        let mut pa: RMatrix;
+        let mut a: f64;
+        let mut b: f64;
+        let mut s1: f64 = 0.0;
+        let mut s2: f64;
+        let mut den: f64;
+        for i in 0..self.x {
+            s1 += r1.data[i] * r2.data[i];
+        }
+        while delta > 0.00000000000001 {
+            ap = self ^ &p1;
+            pa = !(self ^ !&p2);
+            den = 0.0;
+            for i in 0..self.x {
+                den += p2.data[i] * ap.data[i];
+            }
+            if den == 0.0 {
+                break;
+            }
+            a = s1 / den;
+            x1 += a * &p1;
+            x2 += a * &p2;
+            r1 -= a * &ap;
+            r2 -= a * &pa;
+            s2 = s1;
+            s1 = 0.0;
+            for i in 0..self.x {
+                s1 += r1.data[i] * r2.data[i];
+            }
+            b = s1 / s2;
+            p1 = &r1 + b * &p1;
+            p2 = &r2 + b * &p2;
+            delta = r1.norm_2();
+        }
+        x1
+    }
+
+    // solve a linear system, preconditioned biconjugate gradient
+    // A ^ x = b
+    pub fn solve_pbicg(&self, m: &RMatrix, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_pbicg(&RMatrix): square matrix only");
+        assert_eq!(self.x, m.x, "RMatrix.solve_pbicg(&RMatrix): matrix size mismatch");
+        assert_eq!(self.y, m.y, "RMatrix.solve_pbicg(&RMatrix): matrix size mismatch");
+        assert_eq!(1, b.y, "RMatrix.solve_pbicg(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_pbicg(&RMatrix): matrix size mismatch");
+        let mut x1 = RMatrix::gen_zeros(b.x, 1);
+        let mut x2 = RMatrix::gen_zeros(1, b.x);
+        let mut r1 = b.clone();
+        let mut r2 = !b;
+        let mut z1 = m.solve_lu(&r1);
+        //let mut z2 = !m.solve_lu(&!&r2);
+        let mut p1 = z1.clone();
+        let mut p2 = !m.solve_lu(&!&r2);
+        let mut delta: f64 = r1.norm_2();
+        let mut ap: RMatrix;
+        let mut pa: RMatrix;
+        let mut a: f64;
+        let mut b: f64;
+        let mut s1: f64 = 0.0;
+        let mut s2: f64;
+        let mut den: f64;
+        for i in 0..self.x {
+            s1 += z1.data[i] * r2.data[i];
+        }
+        while delta > 0.00000000000001 {
+            ap = self ^ &p1;
+            pa = !(self ^ !&p2);
+            den = 0.0;
+            for i in 0..self.x {
+                den += p2.data[i] * ap.data[i];
+            }
+            if den == 0.0 {
+                break;
+            }
+            a = s1 / den;
+            x1 += a * &p1;
+            x2 += a * &p2;
+            r1 -= a * &ap;
+            r2 -= a * &pa;
+            z1 = m.solve_lu(&r1);
+            //z2 = !m.solve_lu(&!&r2);
+            s2 = s1;
+            s1 = 0.0;
+            for i in 0..self.x {
+                s1 += z1.data[i] * r2.data[i];
+            }
+            b = s1 / s2;
+            p1 = &r1 + b * &p1;
+            p2 = &r2 + b * &p2;
+            delta = r1.norm_2();
+        }
+        x1
+    }
+
     // solve a linear system, conjugate gradient, normal equations
     // A ^ x = b, or min 2-norm of |A ^ x - b|
     pub fn solve_cgnr(&self, b: &RMatrix) -> RMatrix {
@@ -3127,10 +3204,10 @@ impl RMatrix {
             for i in 0..self.x {
                 den += p.data[i] * ap.data[i];
             }
-            a = s1 / den;
             if den == 0.0 {
                 break;
             }
+            a = s1 / den;
             x += a * &p;
             r -= a * &ap;
             z = &r / &m;
@@ -3162,7 +3239,7 @@ impl RMatrix {
         }
         let mut x = RMatrix::gen_zeros(b.x, 1);
         let mut r = b.clone();
-        let mut z = m.solve_lu(&r);
+        let mut z = m.solve_tri_lu(&r);
         let mut p = z.clone();
         let mut delta: f64 = r.norm_2();
         let mut ap: RMatrix;
@@ -3180,13 +3257,13 @@ impl RMatrix {
             for i in 0..self.x {
                 den += p.data[i] * ap.data[i];
             }
-            a = s1 / den;
             if den == 0.0 {
                 break;
             }
+            a = s1 / den;
             x += a * &p;
             r -= a * &ap;
-            z = m.solve_lu(&r);
+            z = m.solve_tri_lu(&r);
             s2 = s1;
             s1 = 0.0;
             for i in 0..self.x {
@@ -3199,20 +3276,13 @@ impl RMatrix {
         x
     }
 
-    // solve a linear system, preconditioned conjugate gradient, A5
+    // solve a linear system, preconditioned conjugate gradient
     // A must be symmetric, positive-definite
     // A ^ x = b
-    pub fn solve_pcg5(&self, b: &RMatrix) -> RMatrix {
+    pub fn solve_pcg(&self, m: &RMatrix, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_pcg5(&RMatrix): square matrix only");
         assert_eq!(1, b.y, "RMatrix.solve_pcg5(&RMatrix): b must be vector");
         assert_eq!(self.x, b.x, "RMatrix.solve_pcg5(&RMatrix): matrix size mismatch");
-        let mut m = self.clone();
-        for i in 0..self.x {
-            for j in (i + 3)..self.y {
-                m.data[i * self.y + j] = 0.0;
-                m.data[j * self.y + i] = 0.0;
-            }
-        }
         let mut x = RMatrix::gen_zeros(b.x, 1);
         let mut r = b.clone();
         let mut z = m.solve_lu(&r);
@@ -3233,71 +3303,10 @@ impl RMatrix {
             for i in 0..self.x {
                 den += p.data[i] * ap.data[i];
             }
-            a = s1 / den;
             if den == 0.0 {
                 break;
             }
-            x += a * &p;
-            r -= a * &ap;
-            z = m.solve_lu(&r);
-            s2 = s1;
-            s1 = 0.0;
-            for i in 0..self.x {
-                s1 += r.data[i] * z.data[i];
-            }
-            b = s1 / s2;
-            p = &z + b * &p;
-            delta = r.norm_2();
-        }
-        x
-    }
-
-    // solve a linear system, preconditioned conjugate gradient, Ab
-    // A must be symmetric, positive-definite
-    // A ^ x = b
-    pub fn solve_pcgb(&self, b: &RMatrix) -> RMatrix {
-        assert_eq!(self.x, self.y, "RMatrix.solve_pcgb(&RMatrix): square matrix only");
-        assert_eq!(1, b.y, "RMatrix.solve_pcgb(&RMatrix): b must be vector");
-        assert_eq!(self.x, b.x, "RMatrix.solve_pcgb(&RMatrix): matrix size mismatch");
-        let mut m = self.clone();
-        let mut i: usize = 0;
-        while i < self.x {
-            let mut rand: usize = rand::thread_rng().gen_range(3, 5);
-            if (i + rand + 1) > self.x {
-                rand = self.x - i;
-            }
-            for k in i..(i + rand) {
-                for j in (i + rand)..self.y {
-                    m.data[k * self.y + j] = 0.0;
-                    m.data[j * self.y + k] = 0.0;
-                }
-            }
-            i += rand;
-        }
-        let mut x = RMatrix::gen_zeros(b.x, 1);
-        let mut r = b.clone();
-        let mut z = m.solve_lu(&r);
-        let mut p = z.clone();
-        let mut delta: f64 = r.norm_2();
-        let mut ap: RMatrix;
-        let mut a: f64;
-        let mut b: f64;
-        let mut s1: f64 = 0.0;
-        let mut s2: f64;
-        let mut den: f64;
-        for i in 0..self.x {
-            s1 += r.data[i] * z.data[i];
-        }
-        while delta > 0.00000000000001 {
-            ap = self ^ &p;
-            den = 0.0;
-            for i in 0..self.x {
-                den += p.data[i] * ap.data[i];
-            }
             a = s1 / den;
-            if den == 0.0 {
-                break;
-            }
             x += a * &p;
             r -= a * &ap;
             z = m.solve_lu(&r);
@@ -3401,8 +3410,8 @@ impl RMatrix {
         let mut eps: f64;
         let mut x: f64;
         let mut y: f64;
-        let mut c: f64 = 0.0;
-        let mut s: f64 = 0.0;
+        let c: f64 = 0.0;
+        let s: f64 = 0.0;
         y_data[0] = b;
         let mut bq = b * &q;
         q = &r / b;
@@ -3443,8 +3452,7 @@ impl RMatrix {
             }
             x = rd_data[n];
             y = b;
-            c = x / (x * x + y * y).sqrt();
-            s = y / (x * x + y * y).sqrt();
+            let (c, s) = givens(x, y);
             rd_data[n] = x * c + y * s;
             // Q
             x = y_data[n];
@@ -3477,6 +3485,23 @@ impl RMatrix {
             data: q_data
         };
         !(y ^ q)
+    }
+
+    // solve linear least squares, QR
+    // min 2-norm of |A ^ x - b|
+    pub fn lsq_qr(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(1, b.y, "RMatrix.lsq_qr(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.lsq_qr(&RMatrix): matrix size mismatch");
+        assert!(self.x >= self.y, "RMatrix.lsq_qr(&RMatrix): not a linear squares problem");
+        let (q, r) = self.cqr_mgs();
+        let mut x = !(!b ^ q);
+        for i in (0..self.y).rev() {
+            x.data[i] /= r.data[i * self.y + i];
+            for j in 0..i {
+                x.data[j] -= x.data[i] * r.data[j * self.y + i];
+            }
+        }
+        x
     }
 }
 
