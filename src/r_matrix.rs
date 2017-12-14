@@ -3471,6 +3471,8 @@ impl RMatrix {
                 y_data[1] /= rd_data[1];
                 y_data[0] -= y_data[1] * r1_data[0];
                 y_data[0] /= rd_data[0];
+                // clean
+                y_data[n + 1] = 0.0;
                 break;
             }
         }
