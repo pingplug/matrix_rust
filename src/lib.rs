@@ -319,12 +319,26 @@ mod tests {
 
     fn solve_test2(rand: &RMatrix, b: &RMatrix) {
         solve_test1(rand, b);
-        let _s = rand.cond() * b.norm_2();
+        let s = rand.cond() * b.norm_2();
 
         // FIXME
         // this function can easily stuck in loop
         //let x = rand.solve_bicg(b);
         //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let x = rand.solve_arnoldi(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        // FIXME
+        // this function can easily break
+        //let x = rand.solve_rarnoldi(b);
+        //assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let x = rand.solve_gmres(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
+
+        let x = rand.solve_rgmres(b);
+        assert!(feq(((rand ^ x) - b).norm_2() / b.norm_2() / s, 0.0));
     }
 
     fn solve_test3(rand: &RMatrix, b: &RMatrix) {

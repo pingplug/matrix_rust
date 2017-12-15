@@ -3027,6 +3027,7 @@ impl RMatrix {
     }
 
     // solve a linear system, biconjugate gradient
+    // DO NOT USE THIS
     // A ^ x = b
     pub fn solve_bicg(&self, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_bicg(&RMatrix): square matrix only");
@@ -3078,6 +3079,7 @@ impl RMatrix {
     }
 
     // solve a linear system, preconditioned biconjugate gradient
+    // DO NOT USE THIS
     // A ^ x = b
     pub fn solve_pbicg(&self, m: &RMatrix, b: &RMatrix) -> RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_pbicg(&RMatrix): square matrix only");
@@ -3391,6 +3393,169 @@ impl RMatrix {
         !(y ^ q)
     }
 
+    // solve a linear system, Arnoldi
+    // A ^ x = b
+    pub fn solve_arnoldi(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_arnoldi(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_arnoldi(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_arnoldi(&RMatrix): matrix size mismatch");
+        let mut q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut ll_data: Vec<f64> = vec![0.0; self.x];
+        let mut u_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut y_data: Vec<f64> = vec![0.0; self.x + 1];
+        let mut q: RMatrix;
+        let mut r = b.clone();
+        let mut b: f64 = r.norm_2();
+        let mut eps: f64;
+        y_data[0] = b;
+        for n in 0..self.y {
+            q = &r / b;
+            r = self ^ &q;
+            for i in 0..n {
+                for k in 0..self.x {
+                    u_data[i * self.x + n] += q_data[i * self.y + k] * r.data[k];
+                }
+                for k in 0..self.x {
+                    r.data[k] -= u_data[i * self.y + n] * q_data[i * self.y + k];
+                }
+            }
+            for k in 0..self.x {
+                u_data[n * self.x + n] += q.data[k] * r.data[k];
+            }
+            for k in 0..self.x {
+                r.data[k] -= u_data[n * self.y + n] * q.data[k];
+            }
+            b = r.norm_2();
+            assert_ne!(b, 0.0, "RMatrix.solve_arnoldi(): break!");
+            // for Q
+            for k in 0..self.x {
+                q_data[n * self.x + k] = q.data[k];
+            }
+            // submat LU decomposition
+            for k in 1..(n + 1) {
+                u_data[k * self.y + n] -= u_data[(k - 1) * self.y + n] * ll_data[k - 1];
+            }
+            ll_data[n] = b / u_data[n * self.y + n];
+            // solve submat(LU, l only)
+            y_data[n + 1] -= y_data[n] * ll_data[n];
+            eps = (b * y_data[n] / u_data[n * self.y + n]).abs();
+            if eps < 0.00000000000001 || (n + 1) == self.y {
+                // solve submat(LU, u)
+                for i in (0..(n + 1)).rev() {
+                    y_data[i] /= u_data[i * self.y + i];
+                    for j in 0..i {
+                        y_data[j] -= y_data[i] * u_data[j * self.y + i];
+                    }
+                }
+                // clean
+                y_data[n + 1] = 0.0;
+                break;
+            }
+        }
+        let y = RMatrix{
+            x: 1,
+            y: self.x,
+            data: y_data
+        };
+        let q = RMatrix {
+            x: self.x,
+            y: self.x,
+            data: q_data
+        };
+        !(y ^ q)
+    }
+
+    // solve a linear system, restarted Arnoldi
+    // DO NOT USE THIS
+    // A ^ x = b
+    pub fn solve_rarnoldi(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_rarnoldi(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_rarnoldi(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_rarnoldi(&RMatrix): matrix size mismatch");
+        // handle small matrix
+        let m: usize = 50;
+        if self.y < m {
+            return self.solve_arnoldi(b);
+        }
+        let mut q_data: Vec<f64> = vec![0.0; m * self.y];
+        let mut ll_data: Vec<f64> = vec![0.0; m];
+        let mut u_data: Vec<f64> = vec![0.0; m * m];
+        let mut y_data: Vec<f64> = vec![0.0; m + 1];
+        let mut q: RMatrix;
+        let mut r = b.clone();
+        let mut h: f64 = r.norm_2();
+        let mut eps = std::f64::MAX;
+        let mut q_mat: RMatrix;
+        let mut x_vec = RMatrix::gen_zeros(b.x, 1);
+        let mut y_vec: RMatrix;
+        y_data[0] = h;
+        while eps > 0.00000000000001 {
+            for n in 0..m {
+                q = &r / h;
+                r = self ^ &q;
+                for i in 0..n {
+                    for k in 0..self.x {
+                        u_data[i * m + n] += q_data[i * self.y + k] * r.data[k];
+                    }
+                    for k in 0..self.x {
+                        r.data[k] -= u_data[i * m + n] * q_data[i * self.y + k];
+                    }
+                }
+                for k in 0..self.x {
+                    u_data[n * m + n] += q.data[k] * r.data[k];
+                }
+                for k in 0..self.x {
+                    r.data[k] -= u_data[n * m + n] * q.data[k];
+                }
+                h = r.norm_2();
+                assert_ne!(h, 0.0, "RMatrix.solve_rarnoldi(): break!");
+                // for Q
+                for k in 0..self.x {
+                    q_data[n * self.x + k] = q.data[k];
+                }
+                // submat LU decomposition
+                for k in 1..(n + 1) {
+                    u_data[k * m + n] -= u_data[(k - 1) * m + n] * ll_data[k - 1];
+                }
+                ll_data[n] = h / u_data[n * m + n];
+                // solve submat(LU, l only)
+                y_data[n + 1] -= y_data[n] * ll_data[n];
+                eps = (h * y_data[n] / u_data[n * m + n]).abs();
+                if eps < 0.00000000000001 || (n + 1) == m {
+                    // solve submat(LU, u)
+                    for i in (0..(n + 1)).rev() {
+                        y_data[i] /= u_data[i * m + i];
+                        for j in 0..i {
+                            y_data[j] -= y_data[i] * u_data[j * m + i];
+                        }
+                    }
+                    // clean
+                    y_data[n + 1] = 0.0;
+                    break;
+                }
+            }
+            y_vec = RMatrix{
+                x: 1,
+                y: m,
+                data: y_data
+            };
+            q_mat = RMatrix {
+                x: m,
+                y: self.y,
+                data: q_data
+            };
+            q_data = vec![0.0; m * self.y];
+            ll_data = vec![0.0; m];
+            u_data = vec![0.0; m * m];
+            y_data = vec![0.0; m + 1];
+            x_vec += !(y_vec ^ q_mat);
+            r = b - (self ^ &x_vec);
+            h = r.norm_2();
+            y_data[0] = h;
+        }
+        x_vec
+    }
+
     // solve a linear system, minimal residual
     // A must be symmetric
     // A ^ x = b
@@ -3459,7 +3624,6 @@ impl RMatrix {
             // y = 0.0
             y_data[n] =  x * c;
             y_data[n + 1] = -x * s;
-            // solve submat(LU, l only)
             eps = (y_data[n + 1]).abs();
             if eps < 0.00000000000001 || (n + 1) == self.y {
                 // solve submat(QR, r)
@@ -3487,6 +3651,205 @@ impl RMatrix {
             data: q_data
         };
         !(y ^ q)
+    }
+
+    // solve a linear system, generalized minimal residual
+    // A ^ x = b
+    pub fn solve_gmres(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_gmres(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_gmres(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_gmres(&RMatrix): matrix size mismatch");
+        let mut q_data: Vec<f64> = vec![0.0; (self.x + 1) * self.x];
+        let mut r_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut y_data: Vec<f64> = vec![0.0; self.x + 1];
+        let mut q: RMatrix;
+        let mut r = b.clone();
+        let mut b: f64 = r.norm_2();
+        let mut eps: f64;
+        let mut x: f64;
+        let mut y: f64;
+        let mut c_data: Vec<f64> = vec![0.0; self.x];
+        let mut s_data: Vec<f64> = vec![0.0; self.x];
+        y_data[0] = b;
+        q = &r / b;
+        for i in 0..self.x {
+            q_data[i] = q.data[i];
+        }
+        for n in 0..self.y {
+            r = self ^ &q;
+            for i in 0..n {
+                for k in 0..self.x {
+                    r_data[i * self.x + n] += q_data[i * self.y + k] * r.data[k];
+                }
+                for k in 0..self.x {
+                    r.data[k] -= r_data[i * self.x + n] * q_data[i * self.y + k];
+                }
+            }
+            for k in 0..self.x {
+                r_data[n * self.x + n] += q.data[k] * r.data[k];
+            }
+            for k in 0..self.x {
+                r.data[k] -= r_data[n * self.y + n] * q.data[k];
+            }
+            b = r.norm_2();
+            assert_ne!(b, 0.0, "RMatrix.solve_gmres(): break!");
+            q = &r / b;
+            // for Q
+            for i in 0..self.x {
+                q_data[(n + 1) * self.x + i] = q.data[i];
+            }
+            // submat QR decomposition, Givens
+            // R
+            for i in 0..n {
+                x = r_data[i * self.x + n];
+                y = r_data[(i + 1) * self.x + n];
+                r_data[i * self.x + n] = x * c_data[i] + y * s_data[i];
+                r_data[(i + 1) * self.x + n] = -x * s_data[i] + y * c_data[i];
+            }
+            x = r_data[n * self.x + n];
+            y = b;
+            c_data[n] = x / (x * x + y * y).sqrt();
+            s_data[n] = y / (x * x + y * y).sqrt();
+            r_data[n * self.x + n] = x * c_data[n] + y * s_data[n];
+            // Q
+            x = y_data[n];
+            // y = 0.0
+            y_data[n] =  x * c_data[n];
+            y_data[n + 1] = -x * s_data[n];
+            eps = (y_data[n + 1]).abs();
+            if eps < 0.00000000000001 || (n + 1) == self.y {
+                // solve submat(QR, r)
+                for i in (0..(n + 1)).rev() {
+                    y_data[i] /= r_data[i * self.x + i];
+                    for j in 0..i {
+                        y_data[j] -= y_data[i] * r_data[j * self.x + i];
+                    }
+                }
+                // clean
+                y_data[n + 1] = 0.0;
+                break;
+            }
+        }
+        let y = RMatrix{
+            x: 1,
+            y: self.x + 1,
+            data: y_data
+        };
+        let q = RMatrix {
+            x: self.x + 1,
+            y: self.x,
+            data: q_data
+        };
+        !(y ^ q)
+    }
+
+    // solve a linear system, restarted generalized minimal residual
+    // A ^ x = b
+    pub fn solve_rgmres(&self, b: &RMatrix) -> RMatrix {
+        assert_eq!(self.x, self.y, "RMatrix.solve_rgmres(&RMatrix): square matrix only");
+        assert_eq!(1, b.y, "RMatrix.solve_rgmres(&RMatrix): b must be vector");
+        assert_eq!(self.x, b.x, "RMatrix.solve_rgmres(&RMatrix): matrix size mismatch");
+        // handle small matrix
+        let m: usize = 50;
+        if self.y < m {
+            return self.solve_gmres(b);
+        }
+        let mut q_data: Vec<f64> = vec![0.0; (m + 1) * self.y];
+        let mut r_data: Vec<f64> = vec![0.0; m * m];
+        let mut y_data: Vec<f64> = vec![0.0; m + 1];
+        let mut q: RMatrix;
+        let mut r = b.clone();
+        let mut h: f64 = r.norm_2();
+        let mut eps = std::f64::MAX;
+        let mut x: f64;
+        let mut y: f64;
+        let mut c_data: Vec<f64> = vec![0.0; m];
+        let mut s_data: Vec<f64> = vec![0.0; m];
+        let mut q_mat: RMatrix;
+        let mut x_vec = RMatrix::gen_zeros(b.x, 1);
+        let mut y_vec: RMatrix;
+        y_data[0] = h;
+        while eps > 0.00000000000001 {
+            q = &r / h;
+            for i in 0..self.x {
+                q_data[i] = q.data[i];
+            }
+            for n in 0..self.y {
+                r = self ^ &q;
+                for i in 0..n {
+                    for k in 0..self.x {
+                        r_data[i * m + n] += q_data[i * self.y + k] * r.data[k];
+                    }
+                    for k in 0..self.x {
+                        r.data[k] -= r_data[i * m + n] * q_data[i * self.y + k];
+                    }
+                }
+                for k in 0..self.x {
+                    r_data[n * m + n] += q.data[k] * r.data[k];
+                }
+                for k in 0..self.x {
+                    r.data[k] -= r_data[n * m + n] * q.data[k];
+                }
+                h = r.norm_2();
+                assert_ne!(h, 0.0, "RMatrix.solve_rgmres(): break!");
+                q = &r / h;
+                // for Q
+                for i in 0..self.x {
+                    q_data[(n + 1) * self.x + i] = q.data[i];
+                }
+                // submat QR decomposition, Givens
+                // R
+                for i in 0..n {
+                    x = r_data[i * m + n];
+                    y = r_data[(i + 1) * m + n];
+                    r_data[i * m + n] = x * c_data[i] + y * s_data[i];
+                    r_data[(i + 1) * m + n] = -x * s_data[i] + y * c_data[i];
+                }
+                x = r_data[n * m + n];
+                y = h;
+                c_data[n] = x / (x * x + y * y).sqrt();
+                s_data[n] = y / (x * x + y * y).sqrt();
+                r_data[n * m + n] = x * c_data[n] + y * s_data[n];
+                // Q
+                x = y_data[n];
+                // y = 0.0
+                y_data[n] =  x * c_data[n];
+                y_data[n + 1] = -x * s_data[n];
+                eps = (y_data[n + 1]).abs();
+                if eps < 0.00000000000001 || (n + 1) == m {
+                    // solve submat(QR, r)
+                    for i in (0..(n + 1)).rev() {
+                        y_data[i] /= r_data[i * m + i];
+                        for j in 0..i {
+                            y_data[j] -= y_data[i] * r_data[j * m + i];
+                        }
+                    }
+                    // clean
+                    y_data[n + 1] = 0.0;
+                    break;
+                }
+            }
+            y_vec = RMatrix {
+                x: 1,
+                y: m + 1,
+                data: y_data
+            };
+            q_mat = RMatrix {
+                x: m + 1,
+                y: self.x,
+                data: q_data
+            };
+            q_data = vec![0.0; (m + 1) * self.y];
+            r_data = vec![0.0; m * m];
+            y_data = vec![0.0; m + 1];
+            c_data = vec![0.0; m];
+            s_data = vec![0.0; m];
+            x_vec += !(y_vec ^ q_mat);
+            r = b - (self ^ &x_vec);
+            h = r.norm_2();
+            y_data[0] = h;
+        }
+        x_vec
     }
 
     // solve linear least squares, QR
