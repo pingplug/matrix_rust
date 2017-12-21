@@ -88,6 +88,23 @@ mod tests {
         a %= ones;
 
         let rand = &RMatrix::gen_rand(50, 200);
+        let inv = rand.inv();
+        assert!(feq(((rand ^ inv ^ rand) - rand).norm_2() / rand.norm_2(), 0.0));
+
+        let rand = &RMatrix::gen_rand(200, 50);
+        let inv = rand.inv();
+        assert!(feq(((rand ^ inv ^ rand) - rand).norm_2() / rand.norm_2(), 0.0));
+
+        let rand = &RMatrix::gen_rand(100, 100);
+        let inv = rand.inv();
+        assert!(feq(((rand ^ inv) - RMatrix::gen_eye(100, 100)).norm_2() / rand.norm_2(), 0.0));
+
+        let rand = &RMatrix::gen_rand(50, 200);
+        let square1 = rand ^ !rand;
+        let square2 = rand.square();
+        assert!(feq((&square1 - square2).norm_2() / square1.norm_2(), 0.0));
+
+        let rand = &RMatrix::gen_rand(200, 50);
         let square1 = rand ^ !rand;
         let square2 = rand.square();
         assert!(feq((&square1 - square2).norm_2() / square1.norm_2(), 0.0));

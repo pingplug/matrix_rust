@@ -93,11 +93,13 @@ pub struct RMatrix {
 impl RMatrix {
     // get row data
     // in place
+    #[inline]
     fn row(&self, num: usize) -> &[f64] {
         &self.data[(num * self.y)..((num + 1) * self.y)]
     }
 
     // get row data
+    #[inline]
     pub fn get_row(&self, num:usize) -> Vec<f64> {
         let mut ret: Vec<f64> = vec![0.0; self.y];
         ret.copy_from_slice(&self.data[(num * self.y)..((num + 1) * self.y)]);
@@ -114,6 +116,7 @@ impl RMatrix {
     }
 
     // get column data
+    #[inline]
     pub fn get_col(&self, num:usize) -> Vec<f64> {
         let mut ret: Vec<f64> = vec![0.0; self.x];
         for i in 0..self.x {
@@ -148,6 +151,7 @@ impl RMatrix {
     }
 
     // get data
+    #[inline]
     pub fn get_data(&self) -> Vec<f64> {
         self.data.clone()
     }
@@ -168,6 +172,7 @@ impl RMatrix {
     }
 
     // generate a vector from a Vec
+    #[inline]
     pub fn gen_vec(vec: Vec<f64>) -> RMatrix {
         RMatrix {
             x: vec.len(),
@@ -177,6 +182,7 @@ impl RMatrix {
     }
 
     // generate a matrix from a Vec
+    #[inline]
     pub fn gen_matrix(m: usize, n: usize, data: Vec<f64>) -> RMatrix {
         assert_eq!(data.len(), m * n, "RMatrix::gen_matrix(): vector size doesn't match");
         RMatrix {
@@ -194,11 +200,7 @@ impl RMatrix {
         for i in 0..min {
             ret_data[i * (n + 1)] = diag[i];
         }
-        RMatrix {
-            x: m,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(m, n, ret_data)
     }
 
     // generate an eye matrix
@@ -208,31 +210,19 @@ impl RMatrix {
         for i in 0..min {
             ret_data[i * (n + 1)] = 1.0;
         }
-        RMatrix {
-            x: m,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(m, n, ret_data)
     }
 
     // generate a matrix, all elements are 0
+    #[inline]
     pub fn gen_zeros(m: usize, n: usize) -> RMatrix {
-        let ret_data: Vec<f64> = vec![0.0; m * n];
-        RMatrix {
-            x: m,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(m, n, vec![0.0; m * n])
     }
 
     // generate a matrix, all elements are 1
+    #[inline]
     pub fn gen_ones(m: usize, n: usize) -> RMatrix {
-        let ret_data: Vec<f64> = vec![1.0; m * n];
-        RMatrix {
-            x: m,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(m, n, vec![1.0; m * n])
     }
 
     // generate a matrix, all elements are random number between 0 and 1
@@ -241,11 +231,7 @@ impl RMatrix {
         for i in 0..(m * n) {
             ret_data[i] = rand::thread_rng().gen_range(0.0, 1.0);
         }
-        RMatrix {
-            x: m,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(m, n, ret_data)
     }
 
     // generate a tridiagonal matrix, all elements are random number between 0 and 1
@@ -258,11 +244,7 @@ impl RMatrix {
             ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
         }
         ret_data[(min - 1) * (n + 1)] = rand::thread_rng().gen_range(0.0, 1.0);
-        RMatrix {
-            x: m,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(m, n, ret_data)
     }
 
     // generate a matrix from given singular values
@@ -295,11 +277,7 @@ impl RMatrix {
                 ret_data[(k + 1) * n + j] = -x * s + y * c;
             }
         }
-        RMatrix {
-            x: n,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(n, n, ret_data)
     }
 
     // generate a matrix from given eigenvalues
@@ -338,11 +316,7 @@ impl RMatrix {
                 ret_data[j * n + i] = ret_data[i * n + j];
             }
         }
-        RMatrix {
-            x: n,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(n, n, ret_data)
     }
 
     // generate a matrix from given complex eigenvalues
@@ -382,11 +356,7 @@ impl RMatrix {
                 ret_data[(k + 1) * n + j] = -x * s + y * c;
             }
         }
-        RMatrix {
-            x: n,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(n, n, ret_data)
     }
 
     // generate an up bidiagonal matrix, all elements are random number between 0 and 1
@@ -397,11 +367,7 @@ impl RMatrix {
             ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
         }
         ret_data[n * n - 1] = rand::thread_rng().gen_range(0.0, 1.0);
-        RMatrix {
-            x: n,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(n, n, ret_data)
     }
 
     // generate a diagonal matrix, all elements are random number between 0 and 1
@@ -411,11 +377,7 @@ impl RMatrix {
         for i in 0..min {
             ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
         }
-        RMatrix {
-            x: m,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(m, n, ret_data)
     }
 
     // generate a symmetric matrix, all elements are random number between 0 and 1
@@ -428,11 +390,7 @@ impl RMatrix {
             }
             ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
         }
-        RMatrix {
-            x: n,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(n, n, ret_data)
     }
 
     // generate a symmetric tridiagonal matrix, all elements are random number between 0 and 1
@@ -444,11 +402,7 @@ impl RMatrix {
             ret_data[i * n + i] = rand::thread_rng().gen_range(0.0, 1.0);
         }
         ret_data[n * n - 1] = rand::thread_rng().gen_range(0.0, 1.0);
-        RMatrix {
-            x: n,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(n, n, ret_data)
     }
 
     // generate a skew symmetric matrix, all elements are random number between 0 and 1
@@ -461,11 +415,7 @@ impl RMatrix {
             }
             ret_data[i * n + i] = 0.0;
         }
-        RMatrix {
-            x: n,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(n, n, ret_data)
     }
 
     // generate a skew symmetric tridiagonal matrix, all elements are random number between 0 and 1
@@ -475,11 +425,7 @@ impl RMatrix {
             ret_data[i * n + (i + 1)] = rand::thread_rng().gen_range(0.0, 1.0);
             ret_data[(i + 1) * n + i] = -1.0 * ret_data[i * n + (i + 1)];
         }
-        RMatrix {
-            x: n,
-            y: n,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(n, n, ret_data)
     }
 
     // 1-norm
@@ -546,6 +492,15 @@ impl RMatrix {
         tmp.data[0] / tmp.data[(min - 1) * (tmp.y + 1)]
     }
 
+    // inverse matrix, SVD
+    pub fn inv(&self) -> RMatrix {
+        let (u, mut s, v) = self.svd_qr();
+        for i in 0..s.x.min(s.y) {
+            s.data[i * s.y + i] = 1.0 / s.data[i * s.y + i];
+        }
+        !(u ^ s ^ v)
+    }
+
     // get the maximum element of a matrix
     pub fn max(&self) -> f64 {
         let mut ret: f64 = self.data[0];
@@ -588,11 +543,7 @@ impl RMatrix {
                 ret_data[j * self.x + i] = sum;
             }
         }
-        RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.x, ret_data)
     }
 
     // calculate the square of A
@@ -610,10 +561,10 @@ impl RMatrix {
                 for k in 0..self.y {
                     sum += tmp[k] * self.data[j * self.y + k];
                 }
-                self.data[i * self.x + j] = sum;
+                self.data[i * self.y + j] = sum;
             }
             for j in 0..i {
-                self.data[i * self.x + j] = self.data[j * self.x + i];
+                self.data[i * self.y + j] = self.data[j * self.y + i];
             }
         }
     }
@@ -674,11 +625,7 @@ impl RMatrix {
                 }
             }
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_l_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_l_data)
     }
 
     // LU decomposition for tridiagonal matrix
@@ -694,11 +641,7 @@ impl RMatrix {
             self.data[j * self.y + j - 1] = 0.0;
             self.data[j * self.y + j] -= self.data[(j - 1) * self.y + j] * ret_l_data[j * self.y + j - 1];
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_l_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_l_data)
     }
 
     // LU decomposition
@@ -747,21 +690,11 @@ impl RMatrix {
                 ret_l_data[i * self.y + i] = 1.0;
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_p_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_l_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_u_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.y, ret_p_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_l_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_u_data)
+        )
     }
 
     // LU decomposition
@@ -810,21 +743,11 @@ impl RMatrix {
                 ret_l_data[i * self.y + i] = 1.0;
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_q_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_l_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_u_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.y, ret_q_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_l_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_u_data)
+        )
     }
 
     // LU decomposition
@@ -873,21 +796,11 @@ impl RMatrix {
                 ret_l_data[i * self.y + i] = 1.0;
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_p_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_l_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_u_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.y, ret_p_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_l_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_u_data)
+        )
     }
 
     // LU decomposition
@@ -950,26 +863,12 @@ impl RMatrix {
                 ret_l_data[i * self.y + i] = 1.0;
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_p_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_q_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_l_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_u_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.y, ret_p_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_q_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_l_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_u_data)
+        )
     }
 
     // compact QR decomposition, classical Gram-Schmidt
@@ -997,16 +896,10 @@ impl RMatrix {
                 ret_q_data[i * self.y + j] = tmp.data[i] / n2;
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_q_data
-        },
-        RMatrix {
-            x: self.y,
-            y: self.y,
-            data: ret_r_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.y, ret_q_data),
+            RMatrix::gen_matrix(self.y, self.y, ret_r_data)
+        )
     }
 
     // QR decomposition, classical Gram-Schmidt
@@ -1052,16 +945,10 @@ impl RMatrix {
                 ret_q_data[i * self.x + j] = tmp.data[i] / n2;
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_q_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_r_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.x, ret_q_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_r_data)
+        )
     }
 
     // compact QR decomposition, modified Gram-Schmidt
@@ -1089,16 +976,10 @@ impl RMatrix {
                 ret_q_data[i * self.y + j] = tmp.data[i] / n2;
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_q_data
-        },
-        RMatrix {
-            x: self.y,
-            y: self.y,
-            data: ret_r_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.y, ret_q_data),
+            RMatrix::gen_matrix(self.y, self.y, ret_r_data)
+        )
     }
 
     // QR decomposition, modified Gram-Schmidt
@@ -1142,16 +1023,10 @@ impl RMatrix {
                 ret_q_data[i * self.x + j] = tmp.data[i] / n2;
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_q_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_r_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.x, ret_q_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_r_data)
+        )
     }
 
     // QR decomposition, Householder
@@ -1214,11 +1089,7 @@ impl RMatrix {
                 }
             }
         }
-        RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_q_data
-        }
+        RMatrix::gen_matrix(self.x, self.x, ret_q_data)
     }
 
     // QR decomposition, Householder
@@ -1304,11 +1175,7 @@ impl RMatrix {
                 }
             }
         }
-        RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_q_data
-        }
+        RMatrix::gen_matrix(self.x, self.x, ret_q_data)
     }
 
     // QR decomposition, Givens
@@ -1410,11 +1277,7 @@ impl RMatrix {
                 }
             }
         }
-        RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_q_data
-        }
+        RMatrix::gen_matrix(self.x, self.x, ret_q_data)
     }
 
     // Hessenberg matrix decomposition, Givens
@@ -1462,11 +1325,7 @@ impl RMatrix {
                 }
             }
         }
-        RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_q_data
-        }
+        RMatrix::gen_matrix(self.x, self.x, ret_q_data)
     }
 
     // Hessenberg matrix decomposition, Arnoldi
@@ -1477,7 +1336,7 @@ impl RMatrix {
             return (RMatrix::gen_eye(self.x, self.y), self.clone());
         }
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
-        let mut ret_h_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut ret_h_data: Vec<f64> = vec![0.0; self.x * self.y];
         let mut q: RMatrix;
         let mut r = RMatrix::gen_rand(self.x, 1);
         let mut b: f64 = r.norm_2();
@@ -1486,14 +1345,14 @@ impl RMatrix {
             r = self ^ &q;
             for i in 0..n {
                 for k in 0..self.x {
-                    ret_h_data[i * self.x + n] += ret_q_data[k * self.y + i] * r.data[k];
+                    ret_h_data[i * self.y + n] += ret_q_data[k * self.x + i] * r.data[k];
                 }
                 for k in 0..self.x {
-                    r.data[k] -= ret_h_data[i * self.y + n] * ret_q_data[k * self.y + i];
+                    r.data[k] -= ret_h_data[i * self.y + n] * ret_q_data[k * self.x + i];
                 }
             }
             for k in 0..self.x {
-                ret_h_data[n * self.x + n] += q.data[k] * r.data[k];
+                ret_h_data[n * self.y + n] += q.data[k] * r.data[k];
             }
             for k in 0..self.x {
                 r.data[k] -= ret_h_data[n * self.y + n] * q.data[k];
@@ -1502,22 +1361,16 @@ impl RMatrix {
             assert_ne!(b, 0.0, "RMatrix.qhq_arnoldi(): break!");
             // for Q
             for i in 0..self.x {
-                ret_q_data[i * self.y + n] = q.data[i];
+                ret_q_data[i * self.x + n] = q.data[i];
             }
             if (n + 1) < self.y {
                 ret_h_data[(n + 1) * self.y + n] = b;
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_q_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_h_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.x, ret_q_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_h_data)
+        )
     }
 
     // tridiagonal matrix decomposition, Householder
@@ -1613,11 +1466,7 @@ impl RMatrix {
                 }
             }
         }
-        RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_q_data
-        }
+        RMatrix::gen_matrix(self.x, self.x, ret_q_data)
     }
 
     // tridiagonal matrix decomposition, Givens
@@ -1683,11 +1532,7 @@ impl RMatrix {
                 }
             }
         }
-        RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_q_data
-        }
+        RMatrix::gen_matrix(self.x, self.x, ret_q_data)
     }
 
     // tridiagonal matrix decomposition, Lanczos
@@ -1699,7 +1544,7 @@ impl RMatrix {
             return (RMatrix::gen_eye(self.x, self.y), self.clone());
         }
         let mut ret_q_data: Vec<f64> = vec![0.0; self.x * self.x];
-        let mut ret_t_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut ret_t_data: Vec<f64> = vec![0.0; self.x * self.y];
         let mut q = RMatrix::gen_zeros(self.x, 1);
         let mut r = RMatrix::gen_rand(self.x, 1);
         let mut a: f64;
@@ -1715,7 +1560,7 @@ impl RMatrix {
                 assert_ne!(b, 0.0, "RMatrix.qtq_lanczos(): break!");
                 // for Q
                 for i in 0..self.x {
-                    ret_q_data[i * self.y + n] = q.data[i];
+                    ret_q_data[i * self.x + n] = q.data[i];
                 }
                 ret_t_data[n * self.y + n] = 0.0;
                 if (n + 1) < self.y {
@@ -1740,7 +1585,7 @@ impl RMatrix {
                 assert_ne!(b, 0.0, "RMatrix.qtq_lanczos(): break!");
                 // for Q
                 for i in 0..self.x {
-                    ret_q_data[i * self.y + n] = q.data[i];
+                    ret_q_data[i * self.x + n] = q.data[i];
                 }
                 ret_t_data[n * self.y + n] = a;
                 if (n + 1) < self.y {
@@ -1749,16 +1594,10 @@ impl RMatrix {
                 }
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_q_data
-        },
-        RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_t_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.x, ret_q_data),
+            RMatrix::gen_matrix(self.x, self.y, ret_t_data)
+        )
     }
 
     // up/dn bidiagonal matrix decomposition, Householder
@@ -1982,16 +1821,10 @@ impl RMatrix {
                 n += 1;
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_p_data
-        },
-        RMatrix {
-            x: self.y,
-            y: self.y,
-            data: ret_q_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.x, ret_p_data),
+            RMatrix::gen_matrix(self.y, self.y, ret_q_data)
+        )
     }
 
     // up/dn bidiagonal matrix decomposition, Givens
@@ -2107,16 +1940,10 @@ impl RMatrix {
                 }
             }
         }
-        (RMatrix {
-            x: self.x,
-            y: self.x,
-            data: ret_p_data
-        },
-        RMatrix {
-            x: self.y,
-            y: self.y,
-            data: ret_q_data
-        })
+        (
+            RMatrix::gen_matrix(self.x, self.x, ret_p_data),
+            RMatrix::gen_matrix(self.y, self.y, ret_q_data)
+        )
     }
 
     // QR decomposition for up bidiagonal matrix, Givens
@@ -3331,7 +3158,7 @@ impl RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_lanczos(&RMatrix): square matrix only");
         assert_eq!(1, b.y, "RMatrix.solve_lanczos(&RMatrix): b must be vector");
         assert_eq!(self.x, b.x, "RMatrix.solve_lanczos(&RMatrix): matrix size mismatch");
-        let mut q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut q_data: Vec<f64> = vec![0.0; (self.x + 1) * self.x];
         let mut ll_data: Vec<f64> = vec![0.0; self.x];
         let mut uu_data: Vec<f64> = vec![0.0; self.x];
         let mut ud_data: Vec<f64> = vec![0.0; self.x + 1];
@@ -3380,16 +3207,8 @@ impl RMatrix {
                 break;
             }
         }
-        let y = RMatrix{
-            x: 1,
-            y: self.x,
-            data: y_data
-        };
-        let q = RMatrix {
-            x: self.x,
-            y: self.x,
-            data: q_data
-        };
+        let y = RMatrix::gen_matrix(1, self.x + 1, y_data);
+        let q = RMatrix::gen_matrix(self.x + 1, self.x, q_data);
         !(y ^ q)
     }
 
@@ -3399,7 +3218,7 @@ impl RMatrix {
         assert_eq!(self.x, self.y, "RMatrix.solve_arnoldi(&RMatrix): square matrix only");
         assert_eq!(1, b.y, "RMatrix.solve_arnoldi(&RMatrix): b must be vector");
         assert_eq!(self.x, b.x, "RMatrix.solve_arnoldi(&RMatrix): matrix size mismatch");
-        let mut q_data: Vec<f64> = vec![0.0; self.x * self.x];
+        let mut q_data: Vec<f64> = vec![0.0; (self.x + 1) * self.x];
         let mut ll_data: Vec<f64> = vec![0.0; self.x];
         let mut u_data: Vec<f64> = vec![0.0; self.x * self.x];
         let mut y_data: Vec<f64> = vec![0.0; self.x + 1];
@@ -3452,16 +3271,8 @@ impl RMatrix {
                 break;
             }
         }
-        let y = RMatrix{
-            x: 1,
-            y: self.x,
-            data: y_data
-        };
-        let q = RMatrix {
-            x: self.x,
-            y: self.x,
-            data: q_data
-        };
+        let y = RMatrix::gen_matrix(1, self.x + 1, y_data);
+        let q = RMatrix::gen_matrix(self.x + 1, self.x, q_data);
         !(y ^ q)
     }
 
@@ -3477,7 +3288,7 @@ impl RMatrix {
         if self.y < m {
             return self.solve_arnoldi(b);
         }
-        let mut q_data: Vec<f64> = vec![0.0; m * self.y];
+        let mut q_data: Vec<f64> = vec![0.0; (m + 1) * self.y];
         let mut ll_data: Vec<f64> = vec![0.0; m];
         let mut u_data: Vec<f64> = vec![0.0; m * m];
         let mut y_data: Vec<f64> = vec![0.0; m + 1];
@@ -3534,17 +3345,9 @@ impl RMatrix {
                     break;
                 }
             }
-            y_vec = RMatrix{
-                x: 1,
-                y: m,
-                data: y_data
-            };
-            q_mat = RMatrix {
-                x: m,
-                y: self.y,
-                data: q_data
-            };
-            q_data = vec![0.0; m * self.y];
+            y_vec = RMatrix::gen_matrix(1, m + 1, y_data);
+            q_mat = RMatrix::gen_matrix(m + 1, self.y, q_data);
+            q_data = vec![0.0; (m + 1) * self.y];
             ll_data = vec![0.0; m];
             u_data = vec![0.0; m * m];
             y_data = vec![0.0; m + 1];
@@ -3640,16 +3443,8 @@ impl RMatrix {
                 break;
             }
         }
-        let y = RMatrix{
-            x: 1,
-            y: self.x + 1,
-            data: y_data
-        };
-        let q = RMatrix {
-            x: self.x + 1,
-            y: self.x,
-            data: q_data
-        };
+        let y = RMatrix::gen_matrix(1, self.x + 1, y_data);
+        let q = RMatrix::gen_matrix(self.x + 1, self.x, q_data);
         !(y ^ q)
     }
 
@@ -3730,16 +3525,8 @@ impl RMatrix {
                 break;
             }
         }
-        let y = RMatrix{
-            x: 1,
-            y: self.x + 1,
-            data: y_data
-        };
-        let q = RMatrix {
-            x: self.x + 1,
-            y: self.x,
-            data: q_data
-        };
+        let y = RMatrix::gen_matrix(1, self.x + 1, y_data);
+        let q = RMatrix::gen_matrix(self.x + 1, self.x, q_data);
         !(y ^ q)
     }
 
@@ -3829,16 +3616,8 @@ impl RMatrix {
                     break;
                 }
             }
-            y_vec = RMatrix {
-                x: 1,
-                y: m + 1,
-                data: y_data
-            };
-            q_mat = RMatrix {
-                x: m + 1,
-                y: self.x,
-                data: q_data
-            };
+            y_vec = RMatrix::gen_matrix(1, m + 1, y_data);
+            q_mat = RMatrix::gen_matrix(m + 1, self.x, q_data);
             q_data = vec![0.0; (m + 1) * self.y];
             r_data = vec![0.0; m * m];
             y_data = vec![0.0; m + 1];
@@ -3873,12 +3652,7 @@ impl RMatrix {
 // Clone
 impl Clone for RMatrix {
     fn clone(&self) -> RMatrix {
-        let ret_data: Vec<f64> = self.data.clone();
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, self.data.clone())
     }
 
     fn clone_from(&mut self, mat: &RMatrix) {
@@ -3945,6 +3719,32 @@ macro_rules! impl_op_1_m {
             #[inline]
             fn $method(self) -> $ot {
                 $imp::$method(&*self)
+            }
+        }
+    }
+}
+
+// A op= &B -> A op= B
+macro_rules! impl_op_sa_i {
+    (impl $imp:ident, $method:ident for $st:ty, $it:ty) => {
+        impl $imp<$it> for $st {
+            #[inline]
+            fn $method(&mut self, rhs: $it) {
+                $imp::$method(self, &rhs)
+            }
+        }
+    }
+}
+
+// A op= &B -> A op= &mut B
+macro_rules! impl_op_sa_m {
+    (impl $imp:ident, $method:ident for $st:ty, $it:ty) => {
+        impl_op_sa_i!(impl $imp, $method for $st, $it);
+
+        impl<'b> $imp<&'b mut $it> for $st {
+            #[inline]
+            fn $method(&mut self, rhs: &'b mut $it) {
+                $imp::$method(self, &*rhs)
             }
         }
     }
@@ -4080,11 +3880,7 @@ impl<'a, 'b> Add<&'b RMatrix> for &'a RMatrix {
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] + mat.data[i];
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_data)
     }
 }
 
@@ -4100,11 +3896,7 @@ impl<'a, 'b> Add<&'b f64> for &'a RMatrix {
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] + num;
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_data)
     }
 }
 
@@ -4120,11 +3912,7 @@ impl<'a, 'b> Add<&'b RMatrix> for &'a f64 {
         for i in 0..(mat.x * mat.y) {
             ret_data[i] = self + mat.data[i];
         }
-        RMatrix {
-            x: mat.x,
-            y: mat.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(mat.x, mat.y, ret_data)
     }
 }
 
@@ -4146,31 +3934,19 @@ impl<'b> AddAssign<&'b RMatrix> for RMatrix {
     }
 }
 
-// A += B
-// in place
-impl AddAssign<RMatrix> for RMatrix {
-    fn add_assign(&mut self, mat: RMatrix) {
-        if mat.x == 1 && mat.y == 1 {
-            *self += mat.data[0];
-            return;
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.add_assign(RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.add_assign(RMatrix): matrix size mismatch");
-        for i in 0..(self.x * self.y) {
-            self.data[i] += mat.data[i];
-        }
-    }
-}
+impl_op_sa_m!{impl AddAssign, add_assign for RMatrix, RMatrix}
 
 // A += b
 // in place
-impl AddAssign<f64> for RMatrix {
-    fn add_assign(&mut self, num: f64) {
+impl<'b> AddAssign<&'b f64> for RMatrix {
+    fn add_assign(&mut self, num: &'b f64) {
         for i in 0..(self.x * self.y) {
             self.data[i] += num;
         }
     }
 }
+
+impl_op_sa_i!{impl AddAssign, add_assign for RMatrix, f64}
 
 // subtraction
 // A - B
@@ -4191,11 +3967,7 @@ impl<'a, 'b> Sub<&'b RMatrix> for &'a RMatrix {
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] - mat.data[i];
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_data)
     }
 }
 
@@ -4211,11 +3983,7 @@ impl<'a, 'b> Sub<&'b f64> for &'a RMatrix {
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] - num;
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_data)
     }
 }
 
@@ -4231,11 +3999,7 @@ impl<'a, 'b> Sub<&'b RMatrix> for &'a f64 {
         for i in 0..(mat.x * mat.y) {
             ret_data[i] = self - mat.data[i];
         }
-        RMatrix {
-            x: mat.x,
-            y: mat.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(mat.x, mat.y, ret_data)
     }
 }
 
@@ -4257,31 +4021,19 @@ impl<'b> SubAssign<&'b RMatrix> for RMatrix {
     }
 }
 
-// A -= B
-// in place
-impl SubAssign<RMatrix> for RMatrix {
-    fn sub_assign(&mut self, mat: RMatrix) {
-        if mat.x == 1 && mat.y == 1 {
-            *self -= mat.data[0];
-            return;
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.sub_assign(RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.sub_assign(RMatrix): matrix size mismatch");
-        for i in 0..(self.x * self.y) {
-            self.data[i] -= mat.data[i];
-        }
-    }
-}
+impl_op_sa_m!{impl SubAssign, sub_assign for RMatrix, RMatrix}
 
 // A -= b
 // in place
-impl SubAssign<f64> for RMatrix {
-    fn sub_assign(&mut self, num: f64) {
+impl<'b> SubAssign<&'b f64> for RMatrix {
+    fn sub_assign(&mut self, num: &'b f64) {
         for i in 0..(self.x * self.y) {
             self.data[i] -= num;
         }
     }
 }
+
+impl_op_sa_i!{impl SubAssign, sub_assign for RMatrix, f64}
 
 // multiplication
 // A * B
@@ -4302,11 +4054,7 @@ impl<'a, 'b> Mul<&'b RMatrix> for &'a RMatrix {
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] * mat.data[i];
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_data)
     }
 }
 
@@ -4322,11 +4070,7 @@ impl<'a, 'b> Mul<&'b f64> for &'a RMatrix {
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] * num;
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_data)
     }
 }
 
@@ -4342,11 +4086,7 @@ impl<'a, 'b> Mul<&'b RMatrix> for &'a f64 {
         for i in 0..(mat.x * mat.y) {
             ret_data[i] = self * mat.data[i];
         }
-        RMatrix {
-            x: mat.x,
-            y: mat.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(mat.x, mat.y, ret_data)
     }
 }
 
@@ -4368,31 +4108,19 @@ impl<'b> MulAssign<&'b RMatrix> for RMatrix {
     }
 }
 
-// A *= B
-// in place
-impl MulAssign<RMatrix> for RMatrix {
-    fn mul_assign(&mut self, mat: RMatrix) {
-        if mat.x == 1 && mat.y == 1 {
-            *self *= mat.data[0];
-            return;
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.mul_assign(RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.mul_assign(RMatrix): matrix size mismatch");
-        for i in 0..(self.x * self.y) {
-            self.data[i] *= mat.data[i];
-        }
-    }
-}
+impl_op_sa_m!{impl MulAssign, mul_assign for RMatrix, RMatrix}
 
 // A *= b
 // in place
-impl MulAssign<f64> for RMatrix {
-    fn mul_assign(&mut self, num: f64) {
+impl<'b> MulAssign<&'b f64> for RMatrix {
+    fn mul_assign(&mut self, num: &'b f64) {
         for i in 0..(self.x * self.y) {
             self.data[i] *= num;
         }
     }
 }
+
+impl_op_sa_i!{impl MulAssign, mul_assign for RMatrix, f64}
 
 // division
 // A / B
@@ -4413,11 +4141,7 @@ impl<'a, 'b> Div<&'b RMatrix> for &'a RMatrix {
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] / mat.data[i];
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_data)
     }
 }
 
@@ -4433,11 +4157,7 @@ impl<'a, 'b> Div<&'b f64> for &'a RMatrix {
         for i in 0..(self.x * self.y) {
             ret_data[i] = self.data[i] / num;
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_data)
     }
 }
 
@@ -4453,11 +4173,7 @@ impl<'a, 'b> Div<&'b RMatrix> for &'a f64 {
         for i in 0..(mat.x * mat.y) {
             ret_data[i] = self / mat.data[i];
         }
-        RMatrix {
-            x: mat.x,
-            y: mat.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(mat.x, mat.y, ret_data)
     }
 }
 
@@ -4479,31 +4195,19 @@ impl<'b> DivAssign<&'b RMatrix> for RMatrix {
     }
 }
 
-// A /= B
-// in place
-impl DivAssign<RMatrix> for RMatrix {
-    fn div_assign(&mut self, mat: RMatrix) {
-        if mat.x == 1 && mat.y == 1 {
-            *self /= mat.data[0];
-            return;
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.div_assign(RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.div_assign(RMatrix): matrix size mismatch");
-        for i in 0..(self.x * self.y) {
-            self.data[i] /= mat.data[i];
-        }
-    }
-}
+impl_op_sa_m!{impl DivAssign, div_assign for RMatrix, RMatrix}
 
 // A /= b
 // in place
-impl DivAssign<f64> for RMatrix {
-    fn div_assign(&mut self, num: f64) {
+impl<'b> DivAssign<&'b f64> for RMatrix {
+    fn div_assign(&mut self, num: &'b f64) {
         for i in 0..(self.x * self.y) {
             self.data[i] /= num;
         }
     }
 }
+
+impl_op_sa_i!{impl DivAssign, div_assign for RMatrix, f64}
 
 // matrix multiplication
 // A ^ B
@@ -4527,11 +4231,7 @@ impl<'a, 'b> BitXor<&'b RMatrix> for &'a RMatrix {
                 }
             }
         }
-        RMatrix {
-            x: self.x,
-            y: mat.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, mat.y, ret_data)
     }
 }
 
@@ -4563,30 +4263,7 @@ impl<'b> ShlAssign<&'b RMatrix> for RMatrix {
     }
 }
 
-// A <<= B
-// number or square matrix only
-// fast, 0.6x time of BitXor
-impl ShlAssign<RMatrix> for RMatrix {
-    fn shl_assign(&mut self, mat: RMatrix) {
-        if mat.x == 1 && mat.y == 1 {
-            *self *= mat.data[0];
-            return;
-        }
-        assert_eq!(self.x, mat.x, "RMatrix.shl_assign(RMatrix): matrix size mismatch");
-        assert_eq!(self.x, mat.y, "RMatrix.shl_assign(RMatrix): matrix size mismatch");
-        let mut tmp_s: Vec<f64>;
-        for j in 0..self.y {
-            tmp_s = self.get_col(j);
-            for i in 0..mat.x {
-                let tmp_m = mat.row(i);
-                self.data[i * self.y + j] = 0.0;
-                for k in 0..self.x {
-                    self.data[i * self.y + j] += tmp_s[k] * tmp_m[k];
-                }
-            }
-        }
-    }
-}
+impl_op_sa_m!{impl ShlAssign, shl_assign for RMatrix, RMatrix}
 
 // in place right matrix multiplication
 // A >>= &B
@@ -4616,32 +4293,7 @@ impl<'b> ShrAssign<&'b RMatrix> for RMatrix {
     }
 }
 
-// A >>= B
-// number or square matrix only
-// slow, 2.5x time of Shl or 1.5x time of BitXor
-impl ShrAssign<RMatrix> for RMatrix {
-    fn shr_assign(&mut self, mat: RMatrix) {
-        if mat.x == 1 && mat.y == 1 {
-            *self *= mat.data[0];
-            return;
-        }
-        assert_eq!(self.y, mat.x, "RMatrix.shr_assign(RMatrix): matrix size mismatch");
-        assert_eq!(self.y, mat.y, "RMatrix.shr_assign(RMatrix): matrix size mismatch");
-        let mut tmp_s: Vec<f64>;
-        let mut tmp_m: Vec<f64>;
-        for i in 0..self.x {
-            tmp_s = self.get_row(i);
-            for j in 0..mat.y {
-                // lose speed here
-                tmp_m = mat.get_col(j);
-                self.data[i * mat.y + j] = 0.0;
-                for k in 0..self.y {
-                    self.data[i * mat.y + j] += tmp_s[k] * tmp_m[k];
-                }
-            }
-        }
-    }
-}
+impl_op_sa_m!{impl ShrAssign, shr_assign for RMatrix, RMatrix}
 
 // transpose
 // !&A
@@ -4660,11 +4312,7 @@ impl<'a> Not for &'a RMatrix {
                 }
             }
         }
-        RMatrix {
-            x: self.y,
-            y: self.x,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.y, self.x, ret_data)
     }
 }
 
@@ -4751,26 +4399,7 @@ impl<'b> BitOrAssign<&'b RMatrix> for RMatrix {
     }
 }
 
-// A |= B
-// in place
-// vector only
-impl BitOrAssign<RMatrix> for RMatrix {
-    fn bitor_assign(&mut self, mat: RMatrix) {
-        assert_eq!(mat.y, 1, "RMatrix.bitor_assign(RMatrix): vector only");
-        assert_eq!(self.x, mat.x, "RMatrix.bitor_assign(RMatrix): vector size mismatch");
-        let mut norm: f64 = 0.0;
-        for i in 0..self.x {
-            norm += mat.data[i] * mat.data[i];
-        }
-        let mut length = !&mat ^ &*self;
-        length /= norm;
-        for j in 0..self.y {
-            for i in 0..self.x {
-                self.data[i * self.y + j] = mat.data[i] * length.data[j];
-            }
-        }
-    }
-}
+impl_op_sa_m!{impl BitOrAssign, bitor_assign for RMatrix, RMatrix}
 
 // get perpendicular
 // cos<A % B, B> = 0
@@ -4795,11 +4424,7 @@ impl<'a, 'b> Rem<&'b RMatrix> for &'a RMatrix {
                 ret_data[i * self.y + j] = self.data[i * self.y + j] - (mat.data[i] * length.data[j]);
             }
         }
-        RMatrix {
-            x: self.x,
-            y: self.y,
-            data: ret_data
-        }
+        RMatrix::gen_matrix(self.x, self.y, ret_data)
     }
 }
 
@@ -4826,24 +4451,5 @@ impl<'b> RemAssign<&'b RMatrix> for RMatrix {
     }
 }
 
-// A %= B
-// in place
-// vector only
-impl RemAssign<RMatrix> for RMatrix {
-    fn rem_assign(&mut self, mat: RMatrix) {
-        assert_eq!(mat.y, 1, "RMatrix.rem_assign(RMatrix): vector only");
-        assert_eq!(self.x, mat.x, "RMatrix.rem_assign(RMatrix): vector size mismatch");
-        let mut norm: f64 = 0.0;
-        for i in 0..self.x {
-            norm += mat.data[i] * mat.data[i];
-        }
-        let mut length = !&mat ^ &*self;
-        length /= norm;
-        for j in 0..self.y {
-            for i in 0..self.x {
-                self.data[i * self.y + j] -= mat.data[i] * length.data[j];
-            }
-        }
-    }
-}
+impl_op_sa_m!{impl RemAssign, rem_assign for RMatrix, RMatrix}
 
