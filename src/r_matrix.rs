@@ -161,7 +161,12 @@ impl RMatrix {
         println!("x: {}", self.x);
         println!("y: {}", self.y);
         for i in 0..self.x {
-            println!("{:?}", self.row(i));
+            print!("[ ");
+            for j in 0..self.y {
+                print!("{:<+20.12e} ", self.data[i * self.y + j]);
+            }
+            print!("]");
+            println!();
         }
     }
 

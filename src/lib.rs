@@ -1,4 +1,4 @@
-mod r_matrix;
+pub mod r_matrix;
 
 #[cfg(test)]
 mod tests {
