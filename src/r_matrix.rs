@@ -574,6 +574,29 @@ impl RMatrix {
         }
     }
 
+    // make tridiagonal matrix (skew-)symmetric
+    // for {qtq,t}_{hh,givens} {tqr,tr}_givens
+    fn to_sym_tri(&mut self) {
+        if self.x <= 1 {
+            return;
+        }
+        if self.data[1] * self.data[self.y] < 0.0 {
+            // skew symmetric
+            self.data[0] = 0.0;
+            for n in 0..(self.y - 1) {
+                self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] - self.data[(n + 1) * self.y + n]) / 2.0;
+                self.data[(n + 1) * self.y + n] = -1.0 * self.data[n * self.y + n + 1];
+                self.data[(n + 1) * self.y + n + 1] = 0.0;
+            }
+        } else if self.data[1] * self.data[self.y] > 0.0 {
+            // symmetric
+            for n in 0..(self.y - 1) {
+                self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] + self.data[(n + 1) * self.y + n]) / 2.0;
+                self.data[(n + 1) * self.y + n] = self.data[n * self.y + n + 1];
+            }
+        }
+    }
+
     // Cholesky decomposition
     // A must be symmetric, positive-definite
     // in place
@@ -1455,22 +1478,7 @@ impl RMatrix {
                 self.data[n * self.y + i] = 0.0;
             }
         }
-        if self.x > 1 {
-            if self.data[1] * self.data[self.y] < 0.0 {
-                // skew symmetric
-                for n in 0..(self.y - 1) {
-                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] - self.data[(n + 1) * self.y + n]) / 2.0;
-                    self.data[(n + 1) * self.y + n] = -1.0 * self.data[n * self.y + n + 1];
-                    self.data[(n + 1) * self.y + n + 1] = 0.0;
-                }
-            } else if self.data[1] * self.data[self.y] > 0.0 {
-                // symmetric
-                for n in 0..(self.y - 1) {
-                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] + self.data[(n + 1) * self.y + n]) / 2.0;
-                    self.data[(n + 1) * self.y + n] = self.data[n * self.y + n + 1];
-                }
-            }
-        }
+        self.to_sym_tri();
         RMatrix::gen_matrix(self.x, self.x, ret_q_data)
     }
 
@@ -1521,22 +1529,7 @@ impl RMatrix {
                 self.data[n * self.y + i] = 0.0;
             }
         }
-        if self.x > 1 {
-            if self.data[1] * self.data[self.y] < 0.0 {
-                // skew symmetric
-                for n in 0..(self.y - 1) {
-                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] - self.data[(n + 1) * self.y + n]) / 2.0;
-                    self.data[(n + 1) * self.y + n] = -1.0 * self.data[n * self.y + n + 1];
-                    self.data[(n + 1) * self.y + n + 1] = 0.0;
-                }
-            } else if self.data[1] * self.data[self.y] > 0.0 {
-                // symmetric
-                for n in 0..(self.y - 1) {
-                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] + self.data[(n + 1) * self.y + n]) / 2.0;
-                    self.data[(n + 1) * self.y + n] = self.data[n * self.y + n + 1];
-                }
-            }
-        }
+        self.to_sym_tri();
         RMatrix::gen_matrix(self.x, self.x, ret_q_data)
     }
 
@@ -2029,6 +2022,144 @@ impl RMatrix {
         }
     }
 
+    // one step QR algorithm for Hessenberg matrix, Givens
+    // in place
+    // H = !Q ^ R ^ Q
+    // for eigendecomposition
+    fn ihqr_givens(&mut self, q: &mut RMatrix) {
+        let mut x: f64;
+        let mut y: f64;
+        let n: usize = self.x;
+        // i = 0
+        // Givens
+        x = self.data[0];
+        y = self.data[self.y];
+        let (c, s) = givens(x, y);
+        for j in 0..n {
+            x = self.data[j];
+            y = self.data[self.y + j];
+            self.data[j] = x * c + y * s;
+            self.data[self.y + j] = -x * s + y * c;
+        }
+        for j in 0..n {
+            x = self.data[j * self.y];
+            y = self.data[j * self.y + 1];
+            self.data[j * self.y] = x * c + y * s;
+            self.data[j * self.y + 1] = -x * s + y * c;
+        }
+        // apply to Q
+        for k in 0..self.x {
+            x = q.data[k * self.x];
+            y = q.data[k * self.x + 1];
+            q.data[k * self.x] = x * c + y * s;
+            q.data[k * self.x + 1] = -x * s + y * c;
+        }
+        for i in 1..(n - 1) {
+            if self.data[(i + 1) * self.y + i] == 0.0 {
+                continue;
+            }
+            // Givens
+            x = self.data[i * self.y + i];
+            y = self.data[(i + 1) * self.y + i];
+            let (c, s) = givens(x, y);
+            for j in (i - 1)..n {
+                x = self.data[i * self.y + j];
+                y = self.data[(i + 1) * self.y + j];
+                self.data[i * self.y + j] = x * c + y * s;
+                self.data[(i + 1) * self.y + j] = -x * s + y * c;
+            }
+            for j in 0..n.min(i + 3) {
+                x = self.data[j * self.y + i];
+                y = self.data[j * self.y + i + 1];
+                self.data[j * self.y + i] = x * c + y * s;
+                self.data[j * self.y + i + 1] = -x * s + y * c;
+            }
+            // apply to Q
+            for k in 0..self.x {
+                x = q.data[k * self.x + i];
+                y = q.data[k * self.x + i + 1];
+                q.data[k * self.x + i] = x * c + y * s;
+                q.data[k * self.x + i + 1] = -x * s + y * c;
+            }
+        }
+        if self.x > 1 {
+            // clean up
+            for n in 2..self.y {
+                self.data[n * self.y + n - 2] = 0.0;
+            }
+        }
+    }
+
+    // one step QR algorithm for tridiagonal matrix, Givens
+    // in place
+    // T = !Q ^ R ^ Q
+    // for eigendecomposition
+    fn itqr_givens(&mut self, q: &mut RMatrix) {
+        let mut x: f64;
+        let mut y: f64;
+        let n: usize = self.x;
+        // i = 0
+        // Givens
+        x = self.data[0];
+        y = self.data[self.y];
+        let (c, s) = givens(x, y);
+        for j in 0..n.min(3) {
+            x = self.data[j];
+            y = self.data[self.y + j];
+            self.data[j] = x * c + y * s;
+            self.data[self.y + j] = -x * s + y * c;
+        }
+        for j in 0..n.min(3) {
+            x = self.data[j * self.y];
+            y = self.data[j * self.y + 1];
+            self.data[j * self.y] = x * c + y * s;
+            self.data[j * self.y + 1] = -x * s + y * c;
+        }
+        // apply to Q
+        for k in 0..self.x {
+            x = q.data[k * self.x];
+            y = q.data[k * self.x + 1];
+            q.data[k * self.x] = x * c + y * s;
+            q.data[k * self.x + 1] = -x * s + y * c;
+        }
+        for i in 1..(n - 1) {
+            if self.data[(i + 1) * self.y + i] == 0.0 {
+                continue;
+            }
+            // Givens
+            x = self.data[i * self.y + i];
+            y = self.data[(i + 1) * self.y + i];
+            let (c, s) = givens(x, y);
+            for j in (i - 1)..n.min(i + 3) {
+                x = self.data[i * self.y + j];
+                y = self.data[(i + 1) * self.y + j];
+                self.data[i * self.y + j] = x * c + y * s;
+                self.data[(i + 1) * self.y + j] = -x * s + y * c;
+            }
+            for j in (i - 1)..n.min(i + 3) {
+                x = self.data[j * self.y + i];
+                y = self.data[j * self.y + i + 1];
+                self.data[j * self.y + i] = x * c + y * s;
+                self.data[j * self.y + i + 1] = -x * s + y * c;
+            }
+            // apply to Q
+            for k in 0..self.x {
+                x = q.data[k * self.x + i];
+                y = q.data[k * self.x + i + 1];
+                q.data[k * self.x + i] = x * c + y * s;
+                q.data[k * self.x + i + 1] = -x * s + y * c;
+            }
+        }
+        if self.x > 1 {
+            // clean up
+            for n in 2..self.y {
+                self.data[n * self.y + n - 2] = 0.0;
+                self.data[(n - 2) * self.y + n] = 0.0;
+            }
+            self.to_sym_tri();
+        }
+    }
+
     // Hessenberg matrix decomposition, Householder
     // in place
     // without Q
@@ -2189,22 +2320,7 @@ impl RMatrix {
                 self.data[n * self.y + i] = 0.0;
             }
         }
-        if self.x > 1 {
-            if self.data[1] * self.data[self.y] < 0.0 {
-                // skew symmetric
-                for n in 0..(self.y - 1) {
-                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] - self.data[(n + 1) * self.y + n]) / 2.0;
-                    self.data[(n + 1) * self.y + n] = -1.0 * self.data[n * self.y + n + 1];
-                    self.data[(n + 1) * self.y + n + 1] = 0.0;
-                }
-            } else if self.data[1] * self.data[self.y] > 0.0 {
-                // symmetric
-                for n in 0..(self.y - 1) {
-                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] + self.data[(n + 1) * self.y + n]) / 2.0;
-                    self.data[(n + 1) * self.y + n] = self.data[n * self.y + n + 1];
-                }
-            }
-        }
+        self.to_sym_tri();
     }
 
     // tridiagonal matrix decomposition, Givens
@@ -2243,22 +2359,7 @@ impl RMatrix {
                 self.data[n * self.y + i] = 0.0;
             }
         }
-        if self.x > 1 {
-            if self.data[1] * self.data[self.y] < 0.0 {
-                // skew symmetric
-                for n in 0..(self.y - 1) {
-                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] - self.data[(n + 1) * self.y + n]) / 2.0;
-                    self.data[(n + 1) * self.y + n] = -1.0 * self.data[n * self.y + n + 1];
-                    self.data[(n + 1) * self.y + n + 1] = 0.0;
-                }
-            } else if self.data[1] * self.data[self.y] > 0.0 {
-                // symmetric
-                for n in 0..(self.y - 1) {
-                    self.data[n * self.y + n + 1] = (self.data[n * self.y + n + 1] + self.data[(n + 1) * self.y + n]) / 2.0;
-                    self.data[(n + 1) * self.y + n] = self.data[n * self.y + n + 1];
-                }
-            }
-        }
+        self.to_sym_tri();
     }
 
     // up/dn bidiagonal matrix decomposition, Householder
@@ -2576,6 +2677,116 @@ impl RMatrix {
         } else {
             self.iubr_givens();
             self.idbr_givens();
+        }
+    }
+
+    // one step QR algorithm for Hessenberg matrix, Givens
+    // in place
+    // without Q
+    // for eigendecomposition
+    fn ihr_givens(&mut self) {
+        let mut x: f64;
+        let mut y: f64;
+        let n: usize = self.x;
+        // i = 0
+        // Givens
+        x = self.data[0];
+        y = self.data[self.y];
+        let (c, s) = givens(x, y);
+        for j in 0..n {
+            x = self.data[j];
+            y = self.data[self.y + j];
+            self.data[j] = x * c + y * s;
+            self.data[self.y + j] = -x * s + y * c;
+        }
+        for j in 0..n {
+            x = self.data[j * self.y];
+            y = self.data[j * self.y + 1];
+            self.data[j * self.y] = x * c + y * s;
+            self.data[j * self.y + 1] = -x * s + y * c;
+        }
+        for i in 1..(n - 1) {
+            if self.data[(i + 1) * self.y + i] == 0.0 {
+                continue;
+            }
+            // Givens
+            x = self.data[i * self.y + i];
+            y = self.data[(i + 1) * self.y + i];
+            let (c, s) = givens(x, y);
+            for j in (i - 1)..n {
+                x = self.data[i * self.y + j];
+                y = self.data[(i + 1) * self.y + j];
+                self.data[i * self.y + j] = x * c + y * s;
+                self.data[(i + 1) * self.y + j] = -x * s + y * c;
+            }
+            for j in 0..n.min(i + 3) {
+                x = self.data[j * self.y + i];
+                y = self.data[j * self.y + i + 1];
+                self.data[j * self.y + i] = x * c + y * s;
+                self.data[j * self.y + i + 1] = -x * s + y * c;
+            }
+        }
+        if self.x > 1 {
+            // clean up
+            for n in 2..self.y {
+                self.data[n * self.y + n - 2] = 0.0;
+            }
+        }
+    }
+
+    // one step QR algorithm for tridiagonal matrix, Givens
+    // in place
+    // without Q
+    // for eigendecomposition
+    fn itr_givens(&mut self) {
+        let mut x: f64;
+        let mut y: f64;
+        let n: usize = self.x;
+        // i = 0
+        // Givens
+        x = self.data[0];
+        y = self.data[self.y];
+        let (c, s) = givens(x, y);
+        for j in 0..n.min(3) {
+            x = self.data[j];
+            y = self.data[self.y + j];
+            self.data[j] = x * c + y * s;
+            self.data[self.y + j] = -x * s + y * c;
+        }
+        for j in 0..n.min(3) {
+            x = self.data[j * self.y];
+            y = self.data[j * self.y + 1];
+            self.data[j * self.y] = x * c + y * s;
+            self.data[j * self.y + 1] = -x * s + y * c;
+        }
+        for i in 1..(n - 1) {
+            if self.data[(i + 1) * self.y + i] == 0.0 {
+                continue;
+            }
+            // Givens
+            x = self.data[i * self.y + i];
+            y = self.data[(i + 1) * self.y + i];
+            let (c, s) = givens(x, y);
+            for j in (i - 1)..n.min(i + 3) {
+                x = self.data[i * self.y + j];
+                y = self.data[(i + 1) * self.y + j];
+                self.data[i * self.y + j] = x * c + y * s;
+                self.data[(i + 1) * self.y + j] = -x * s + y * c;
+            }
+            for j in (i - 1)..n.min(i + 3) {
+                x = self.data[j * self.y + i];
+                y = self.data[j * self.y + i + 1];
+                self.data[j * self.y + i] = x * c + y * s;
+                self.data[j * self.y + i + 1] = -x * s + y * c;
+            }
+        }
+        if self.x > 1 {
+            // clean up
+            for n in 2..self.y {
+                self.data[n * self.y + n - 2] = 0.0;
+                self.data[(n - 2) * self.y + n] = 0.0;
+            }
+            self.to_sym_tri();
         }
     }
 
@@ -3207,7 +3418,7 @@ impl RMatrix {
                     y_data[i - 1] -= y_data[i] * uu_data[i - 1];
                 }
                 y_data[0] /= ud_data[0];
-                // clean
+                // clean up
                 y_data[n + 1] = 0.0;
                 break;
             }
@@ -3271,7 +3482,7 @@ impl RMatrix {
                         y_data[j] -= y_data[i] * u_data[j * self.y + i];
                     }
                 }
-                // clean
+                // clean up
                 y_data[n + 1] = 0.0;
                 break;
             }
@@ -3443,7 +3654,7 @@ impl RMatrix {
                 y_data[1] /= rd_data[1];
                 y_data[0] -= y_data[1] * r1_data[0];
                 y_data[0] /= rd_data[0];
-                // clean
+                // clean up
                 y_data[n + 1] = 0.0;
                 break;
             }
@@ -3508,8 +3719,9 @@ impl RMatrix {
             }
             x = r_data[n * self.x + n];
             y = b;
-            c_data[n] = x / (x * x + y * y).sqrt();
-            s_data[n] = y / (x * x + y * y).sqrt();
+            let (c, s) = givens(x, y);
+            c_data[n] = c;
+            s_data[n] = s;
             r_data[n * self.x + n] = x * c_data[n] + y * s_data[n];
             // Q
             x = y_data[n];
@@ -3525,7 +3737,7 @@ impl RMatrix {
                         y_data[j] -= y_data[i] * r_data[j * self.x + i];
                     }
                 }
-                // clean
+                // clean up
                 y_data[n + 1] = 0.0;
                 break;
             }
@@ -3599,8 +3811,9 @@ impl RMatrix {
                 }
                 x = r_data[n * m + n];
                 y = h;
-                c_data[n] = x / (x * x + y * y).sqrt();
-                s_data[n] = y / (x * x + y * y).sqrt();
+                let (c, s) = givens(x, y);
+                c_data[n] = c;
+                s_data[n] = s;
                 r_data[n * m + n] = x * c_data[n] + y * s_data[n];
                 // Q
                 x = y_data[n];
@@ -3616,7 +3829,7 @@ impl RMatrix {
                             y_data[j] -= y_data[i] * r_data[j * m + i];
                         }
                     }
-                    // clean
+                    // clean up
                     y_data[n + 1] = 0.0;
                     break;
                 }
